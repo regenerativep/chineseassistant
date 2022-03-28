@@ -1,3 +1,4 @@
+docs2/
 data/cedict_ts.u8
 src/gen/words.zig
 src/pinyin2.zig
