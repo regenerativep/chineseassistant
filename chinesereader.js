@@ -68,7 +68,7 @@ const read_input_buffer = function() {
 var word_buffer = "word_buffer";
 const add_word = function(s_ptr, s_len, pinyin_ptr, pinyin_len) {
     let simplified = getString(s_ptr, s_len);
-    console.log("got simplified: " + simplified);
+    //console.log("got simplified: " + simplified);
     let pinyin = getString(pinyin_ptr, pinyin_len);
     addWordToBuffer(simplified, pinyin);
 };
@@ -100,6 +100,9 @@ function addWordToBuffer(simplified, pinyin) {
     simplifiedP.innerHTML = simplified;
     let pinyinP = document.createElement("p");
     pinyinP.setAttribute("class", "word_pinyin");
+    if(!panelEnabled("pinyin")) {
+        pinyinP.setAttribute("style", "display:none;");
+    }
     pinyinP.innerHTML = pinyin;
     let wordDiv = document.createElement("div");
     wordDiv.setAttribute("class", "word");
@@ -147,7 +150,53 @@ function showDefinition(word) {
     }
     clear_def_box();
     chre.exports.retrieveDefinitions(arr.byteOffset, arr.length);
+    if(!panelEnabled("definition")) {
+        togglePanel("definition");
+    }
 }
+
+var enabled_panels = {};
+function panelEnabled(name) {
+    return typeof enabled_panels[name] !== "undefined" && !!enabled_panels[name];
+}
+
+function setPinyinEnabled(on) {
+    let attr;
+    if(on) {
+        attr = "";
+    } else {
+        attr = "display:none;";
+    }
+    let elems = document.getElementsByClassName("word_pinyin");
+    for(let i = 0; i < elems.length; i += 1) {
+        let elem = elems[i];
+        elem.setAttribute("style", attr);
+    }
+}
+
+function togglePanel(name) {
+    let navelem = document.getElementById("nav_" + name);
+    let panelelem = document.getElementById("panel_" + name);
+    if(panelEnabled(name)) {
+        navelem.setAttribute("style", "background-color:red;");
+        if(name === "pinyin") {
+            setPinyinEnabled(false);
+        } else {
+            panelelem.setAttribute("style", "display:none;");
+        }
+        enabled_panels[name] = false;
+    }
+    else {
+        navelem.setAttribute("style", "");
+        if(name === "pinyin") {
+            setPinyinEnabled(true);
+        } else {
+            panelelem.setAttribute("style", "display:block;");
+        }
+        enabled_panels[name] = true;
+    }
+}
+
 
 var chre = {
     objects: [],
@@ -176,5 +225,19 @@ window.addEventListener("load", () => {
     document.getElementById("input_button").addEventListener("click", () => {
         clear_word_buffer();
         read_input_buffer();
+    });
+    let panels = ["input", "definition", "debug", "pinyin"];
+    panels.forEach((name) => {
+        document.getElementById("nav_" + name).addEventListener("click", () => {
+            togglePanel(name);
+        });
+        togglePanel(name);
+    });
+    document.getElementById("nav_none").addEventListener("click", () => {
+        panels.forEach((name) => {
+            if(panelEnabled(name)) {
+                togglePanel(name);
+            }
+        });
     });
 });
