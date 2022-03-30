@@ -226,7 +226,7 @@ window.addEventListener("load", () => {
         clear_word_buffer();
         read_input_buffer();
     });
-    let panels = ["input", "definition", "debug", "pinyin"];
+    let panels = ["input", "definition", "debug", "pinyin", "license"];
     panels.forEach((name) => {
         document.getElementById("nav_" + name).addEventListener("click", () => {
             togglePanel(name);
