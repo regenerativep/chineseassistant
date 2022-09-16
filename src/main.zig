@@ -117,18 +117,29 @@ export fn receiveInputBuffer(ptr: [*]const u8, len: usize) bool {
 }
 
 export fn retrieveDefinitions(ptr: [*]const u8, len: usize) void {
-    if (dict.get(ptr[0..len])) |defs| {
-        for (defs) |def| {
-            const pinyin_text = dictPinyinToString(alloc, def.pinyin) catch continue;
-            defer alloc.free(pinyin_text);
-            add_def(
-                def.simplified.ptr,
-                def.simplified.len,
-                pinyin_text.ptr,
-                pinyin_text.len,
-                def.definition.ptr,
-                def.definition.len,
-            );
+    const text = ptr[0..len];
+    const cp_len = std.unicode.utf8CountCodepoints(text) catch return;
+    var i = cp_len;
+    while (i > 0) : (i -= 1) {
+        var j: usize = 0;
+        var iter = std.unicode.Utf8Iterator{ .bytes = text, .i = 0 };
+        while (j <= cp_len - i) : (j += 1) {
+            const sub_text = iter.peek(i);
+            if (dict.get(sub_text)) |defs| {
+                for (defs) |def| {
+                    const pinyin_text = dictPinyinToString(alloc, def.pinyin) catch continue;
+                    defer alloc.free(pinyin_text);
+                    add_def(
+                        def.simplified.ptr,
+                        def.simplified.len,
+                        pinyin_text.ptr,
+                        pinyin_text.len,
+                        def.definition.ptr,
+                        def.definition.len,
+                    );
+                }
+            }
+            _ = iter.nextCodepoint() orelse break;
         }
     }
 }
