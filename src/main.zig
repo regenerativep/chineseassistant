@@ -9,9 +9,21 @@ const CodepointArrayPeeker = @import("peeker.zig").CodepointArrayPeeker;
 
 extern "buffer" fn write_output_buffer(ptr: [*]const u8, len: usize) void;
 extern "buffer" fn clear_output_buffer() void;
-extern "buffer" fn add_word(simp_ptr: [*]const u8, simp_len: usize, pinyin_ptr: [*]const u8, pinyin_len: usize) void;
+extern "buffer" fn add_word(
+    simp_ptr: [*]const u8,
+    simp_len: usize,
+    pinyin_ptr: [*]const u8,
+    pinyin_len: usize,
+) void;
 extern "buffer" fn add_not_word(ptr: [*]const u8, len: usize) void;
-extern "buffer" fn add_def(simp_ptr: [*]const u8, simp_len: usize, pinyin_ptr: [*]const u8, pinyin_len: usize, def_ptr: [*]const u8, def_len: usize) void;
+extern "buffer" fn add_def(
+    simp_ptr: [*]const u8,
+    simp_len: usize,
+    pinyin_ptr: [*]const u8,
+    pinyin_len: usize,
+    def_ptr: [*]const u8,
+    def_len: usize,
+) void;
 
 pub fn writeOutputBuffer(text: []const u8) void {
     write_output_buffer(text.ptr, text.len);
@@ -27,7 +39,10 @@ var gpa: std.heap.GeneralPurposeAllocator(.{}) = undefined;
 var alloc: mem.Allocator = undefined;
 var dict: std.StringHashMapUnmanaged([]const words.WordDefinition) = undefined;
 
-pub fn dictPinyinToString(allocator: mem.Allocator, pinyins: []const pinyin.DictionaryPinyin) ![]const u8 {
+pub fn dictPinyinToString(
+    allocator: mem.Allocator,
+    pinyins: []const pinyin.DictionaryPinyin,
+) ![]const u8 {
     var pinyin_text = std.ArrayList(u8).init(allocator);
     defer pinyin_text.deinit();
     var last_is_other = false;
@@ -38,7 +53,7 @@ pub fn dictPinyinToString(allocator: mem.Allocator, pinyins: []const pinyin.Dict
                 if (last_is_other and !first) {
                     try pinyin_text.append(' ');
                 }
-                try inner.write(pinyin_text.writer());
+                try inner.writeToned(pinyin_text.writer());
             },
             .other => |inner| {
                 if (!last_is_other and !first) {
@@ -55,7 +70,10 @@ pub fn dictPinyinToString(allocator: mem.Allocator, pinyins: []const pinyin.Dict
 export fn receiveInputBuffer(ptr: [*]const u8, len: usize) bool {
     const text = ptr[0..len];
 
-    var peeker = CodepointArrayPeeker(words.LongestSimplifiedByteLen, words.LongestSimplifiedCodepointLen).init(text) catch return false;
+    var peeker = CodepointArrayPeeker(
+        words.LongestSimplifiedByteLen,
+        words.LongestSimplifiedCodepointLen,
+    ).init(text) catch return false;
     while (true) {
         peeker.fill();
         if (peeker.byte_buf.len == 0) {
@@ -103,7 +121,14 @@ export fn retrieveDefinitions(ptr: [*]const u8, len: usize) void {
         for (defs) |def| {
             const pinyin_text = dictPinyinToString(alloc, def.pinyin) catch continue;
             defer alloc.free(pinyin_text);
-            add_def(def.simplified.ptr, def.simplified.len, pinyin_text.ptr, pinyin_text.len, def.definition.ptr, def.definition.len);
+            add_def(
+                def.simplified.ptr,
+                def.simplified.len,
+                pinyin_text.ptr,
+                pinyin_text.len,
+                def.definition.ptr,
+                def.definition.len,
+            );
         }
     }
 }
