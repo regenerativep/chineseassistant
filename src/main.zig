@@ -4,7 +4,8 @@ const math = std.math;
 const mem = std.mem;
 
 const pinyin = @import("pinyin.zig");
-const words = @import("gen/words.zig");
+//const words = @import("gen/words.zig");
+const words = @import("words.zig");
 const CodepointArrayPeeker = @import("peeker.zig").CodepointArrayPeeker;
 
 extern "buffer" fn write_output_buffer(ptr: [*]const u8, len: usize) void;
@@ -35,9 +36,40 @@ pub fn addNotWord(text: []const u8) void {
     add_not_word(text.ptr, text.len);
 }
 
+pub fn writeOutputBufferVoid(self: void, text: []const u8) OutputBufferWriterError!usize {
+    _ = self;
+    write_output_buffer(text.ptr, text.len);
+    return text.len;
+}
+
+const OutputBufferWriterError = error{};
+const OutputBufferWriter = std.io.Writer(void, OutputBufferWriterError, writeOutputBufferVoid);
+
+pub const log_level: std.log.Level = .info;
+
+pub fn log(
+    comptime level: std.log.Level,
+    comptime scope: @TypeOf(.EnumLiteral),
+    comptime format: []const u8,
+    args: anytype,
+) void {
+    const scope_prefix = "(" ++ switch (scope) {
+        .default => @tagName(scope),
+        else => if (@enumToInt(level) <= @enumToInt(std.log.Level.err))
+            @tagName(scope)
+        else
+            return,
+    } ++ "): ";
+
+    const prefix = "[" ++ level.asText() ++ "] " ++ scope_prefix;
+
+    var writer = OutputBufferWriter{ .context = {} };
+    nosuspend writer.print(prefix ++ format ++ "<br>", args) catch return;
+}
+
 var gpa: std.heap.GeneralPurposeAllocator(.{}) = undefined;
 var alloc: mem.Allocator = undefined;
-var dict: std.StringHashMapUnmanaged([]const words.WordDefinition) = undefined;
+var dict: words.WordMap = undefined;
 
 pub fn dictPinyinToString(
     allocator: mem.Allocator,
@@ -67,40 +99,38 @@ pub fn dictPinyinToString(
     return pinyin_text.toOwnedSlice();
 }
 
-export fn receiveInputBuffer(ptr: [*]const u8, len: usize) bool {
-    const text = ptr[0..len];
-
-    var peeker = CodepointArrayPeeker(
+pub fn receiveInputBufferE(text: []const u8) !void {
+    var peeker = try CodepointArrayPeeker(
         words.LongestSimplifiedByteLen,
         words.LongestSimplifiedCodepointLen,
-    ).init(text) catch return false;
+    ).init(text);
     while (true) {
         peeker.fill();
-        if (peeker.byte_buf.len == 0) {
-            break;
-        }
-        var largest_def: ?words.WordDefinition = null;
+        if (peeker.byte_buf.len == 0) break;
+
         var iter = peeker.variationIterator();
-        while (iter.next()) |slice| {
-            if (dict.get(slice)) |defs| {
-                // find the first non-proper definition, otherwise just use proper def
-                largest_def = defs[0];
-                for (defs) |def| {
-                    if (def.pinyin[0] == .pinyin and !def.pinyin[0].pinyin.proper) {
-                        largest_def = def;
-                        break;
-                    }
+        blk: while (iter.next()) |slice| {
+            if (dict.get(slice)) |*def_iter| {
+                // find next non-proper definition, otherwise just use proper def
+                var pinyin_buf: [50]pinyin.DictionaryPinyin = undefined;
+                while (try def_iter.next(&pinyin_buf)) |def| {
+                    // if current is proper and there is another one, then go to the next one
+                    if (def_iter.inner != null and
+                        def.pinyin[0] == .pinyin and
+                        def.pinyin[0].pinyin.proper)
+                        continue;
+
+                    // add entire word as word
+                    const pinyin_text = try dictPinyinToString(alloc, def.pinyin);
+                    defer alloc.free(pinyin_text);
+                    addWord(def.simplified, pinyin_text);
+
+                    // remove word from buffer
+                    peeker.removeFirstNCodepoints(iter.i + 1);
+
+                    break :blk;
                 }
-                break;
             }
-        }
-        if (largest_def) |def| {
-            // add entire word as word
-            const pinyin_text = dictPinyinToString(alloc, def.pinyin) catch return false;
-            defer alloc.free(pinyin_text);
-            addWord(def.simplified, pinyin_text);
-            // remove word from buffer
-            peeker.removeFirstNCodepoints(iter.i + 1);
         } else {
             // add first codepoint as non-word
             const codepoint = peeker.firstCodepointInBuffer();
@@ -113,21 +143,27 @@ export fn receiveInputBuffer(ptr: [*]const u8, len: usize) bool {
             peeker.removeFirstNCodepoints(1);
         }
     }
+}
+export fn receiveInputBuffer(ptr: [*]const u8, len: usize) bool {
+    receiveInputBufferE(ptr[0..len]) catch |e| {
+        std.log.err("error while receiving input buffer: {any}", .{e});
+        return false;
+    };
     return true;
 }
 
-export fn retrieveDefinitions(ptr: [*]const u8, len: usize) void {
-    const text = ptr[0..len];
-    const cp_len = std.unicode.utf8CountCodepoints(text) catch return;
+pub fn retrieveDefinitionsE(text: []const u8) !void {
+    const cp_len = try std.unicode.utf8CountCodepoints(text);
     var i = cp_len;
     while (i > 0) : (i -= 1) {
         var j: usize = 0;
         var iter = std.unicode.Utf8Iterator{ .bytes = text, .i = 0 };
         while (j <= cp_len - i) : (j += 1) {
             const sub_text = iter.peek(i);
-            if (dict.get(sub_text)) |defs| {
-                for (defs) |def| {
-                    const pinyin_text = dictPinyinToString(alloc, def.pinyin) catch continue;
+            if (dict.get(sub_text)) |*def_iter| {
+                var pinyin_buf: [50]pinyin.DictionaryPinyin = undefined;
+                while (try def_iter.next(&pinyin_buf)) |def| {
+                    const pinyin_text = try dictPinyinToString(alloc, def.pinyin);
                     defer alloc.free(pinyin_text);
                     add_def(
                         def.simplified.ptr,
@@ -143,14 +179,25 @@ export fn retrieveDefinitions(ptr: [*]const u8, len: usize) void {
         }
     }
 }
+export fn retrieveDefinitions(ptr: [*]const u8, len: usize) bool {
+    retrieveDefinitionsE(ptr[0..len]) catch |e| {
+        std.log.err("error during definition retrieval: {any}", .{e});
+        return false;
+    };
+    return true;
+}
 
 pub fn launch() !void {
     //writeOutputBuffer("hello wrld!..<br>:(");
     gpa = .{};
     alloc = gpa.allocator();
-    dict = try words.initMap(alloc);
+    dict = try words.WordMap.init(alloc);
 }
 
 export fn launch_export() bool {
-    return !std.meta.isError(launch());
+    launch() catch |e| {
+        std.log.err("error during launch: {any}", .{e});
+        return false;
+    };
+    return true;
 }

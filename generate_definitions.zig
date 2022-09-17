@@ -6,6 +6,8 @@ const assert = std.debug.assert;
 
 const pinyin = @import("src/pinyin.zig");
 
+const ExtraPacked = @import("dep/extrapacked.git/extrapacked.zig").ExtraPacked;
+
 pub fn nextDelim(text: []const u8, delim: u8, from: usize) ?usize {
     var i = from;
     while (i < text.len) : (i += 1) {
@@ -93,89 +95,49 @@ pub fn main() !void {
     }
     //std.log.info("longest: {}", .{longest_len});
 
+    {
+        const target_filename = "src/gen/dict_values.zig";
+        var target_file = try fs.cwd().createFile(target_filename, .{});
+        defer target_file.close();
+        try target_file.writer().print(
+            \\pub const LongestSimplifiedCodepointLen = {};
+            \\pub const LongestSimplifiedByteLen = {};
+            \\pub const DefinitionCount = {};
+            \\
+        , .{ longest_len, longest_byte_len, defs.items.len });
+    }
+
     var data = std.ArrayList(u8).init(alloc);
     defer data.deinit();
     var buffered_writer = std.io.bufferedWriter(data.writer());
     var writer = buffered_writer.writer();
-    try writer.print(
-        \\const std = @import("std");
-        \\const pinyin = @import("../pinyin.zig");
-        \\const DictionaryPinyin = pinyin.DictionaryPinyin;
-        \\
-        \\pub const LongestSimplifiedCodepointLen = {};
-        \\pub const LongestSimplifiedByteLen = {};
-        \\pub const WordDefinition = struct {{
-        \\    simplified: []const u8,
-        \\    traditional: []const u8,
-        \\    pinyin: []const DictionaryPinyin,
-        \\    definition: []const u8,
-        \\}};
-        \\pub const Definitions = [_][]const WordDefinition{{
-        \\    &[_]WordDefinition{{
-        \\
-    , .{ longest_len, longest_byte_len });
-    var last_def: ?WordDefinition = null;
-    for (defs.items) |def| {
-        const same_as_last_def = if (last_def) |last_def_inner| std.mem.eql(u8, last_def_inner.simplified, def.simplified) else true;
-        if (!same_as_last_def) {
-            try writer.writeAll(
-                \\    }, &[_]WordDefinition{
-                \\
-            );
-        }
-        try writer.print(
-            \\        .{{
-            \\            .simplified = "{s}",
-            \\            .traditional = "{s}",
-            \\            .definition =
-            \\                \\{s}
-            \\            ,
-            \\            .pinyin = &[_]DictionaryPinyin{{
-            \\
-        , .{ def.simplified, def.traditional, def.definition });
-        const chars = try pinyin.readPinyinCharacters(50, def.pinyin);
-        for (chars.constSlice()) |c| {
-            switch (c) {
-                .pinyin => |inner| {
-                    const initial_prefix: []const u8 = if (inner.initial != null) "." else "";
-                    const initial_text = if (inner.initial) |initial| @tagName(initial) else "null";
-                    const proper: []const u8 = if (inner.proper) "true" else "false";
-                    try writer.print(
-                        \\                .{{ .pinyin = .{{ .proper = {s}, .initial = {s}{s}, .final = .{s}, .tone = {} }} }},
-                        \\
-                    , .{ proper, initial_prefix, initial_text, @tagName(inner.final), inner.tone });
-                },
-                .other => |inner| try writer.print(
-                    \\                .{{ .other = "{s}" }},
-                    \\
-                , .{inner}),
-            }
-        }
-        try writer.writeAll(
-            \\            },
-            \\        },
-            \\
-        );
-        last_def = def;
-    }
-    try writer.writeAll(
-        \\    },
-        \\};
-        \\
-        \\pub fn initMap(alloc: std.mem.Allocator) !std.StringHashMapUnmanaged([]const WordDefinition) {
-        \\    var map: std.StringHashMapUnmanaged([]const WordDefinition) = .{};
-        \\    for(Definitions) |defs| {
-        \\        try map.putNoClobber(alloc, defs[0].simplified, defs);
-        \\    }
-        \\    return map;
-        \\}
-        \\
-    );
 
+    for (defs.items) |def| {
+        try writer.writeIntLittle(u16, @intCast(u16, def.simplified.len));
+        try writer.writeAll(def.simplified);
+        try writer.writeIntLittle(u16, @intCast(u16, def.traditional.len));
+        try writer.writeAll(def.traditional);
+        try writer.writeIntLittle(u16, @intCast(u16, def.definition.len));
+        try writer.writeAll(def.definition);
+        var pinyin_buf: [50]pinyin.DictionaryPinyin = undefined;
+        const chars = try pinyin.readPinyinCharacters(&pinyin_buf, def.pinyin);
+        try writer.writeIntLittle(u16, @intCast(u16, chars.len));
+        for (chars) |c| {
+            const unpacked_c = if (c == .pinyin) pinyin.CharacterOrLength{
+                .character = c.pinyin,
+            } else pinyin.CharacterOrLength{
+                .len = @intCast(u15, c.other.len),
+            };
+            try writer.writeIntLittle(u16, pinyin.PackedCharacterOrLength.pack(unpacked_c));
+            if (c == .other) try writer.writeAll(c.other);
+        }
+    }
     try buffered_writer.flush();
 
-    const target_filename = "src/gen/words.zig";
-    var target_file = try fs.cwd().createFile(target_filename, .{});
-    defer target_file.close();
-    try target_file.writeAll(data.items);
+    {
+        const target_filename = "src/gen/words.bin";
+        var target_file = try fs.cwd().createFile(target_filename, .{});
+        defer target_file.close();
+        try target_file.writeAll(data.items);
+    }
 }

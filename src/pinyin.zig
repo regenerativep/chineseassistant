@@ -1,6 +1,8 @@
 const std = @import("std");
 const enums = std.enums;
 
+const ExtraPacked = @import("extrapacked").ExtraPacked;
+
 pub const PinyinInitial = enum {
     B,
     P,
@@ -286,7 +288,7 @@ pub const PinyinFinal = enum {
     }
     pub const FromTextResult = struct { proper: bool, self: Self };
     pub fn fromText(text: []const u8) ?FromTextResult {
-        const proper = std.ascii.isUpper(text[0]) or std.mem.eql(text[0..2], "Ü");
+        const proper = std.ascii.isUpper(text[0]) or (text.len >= 2 and std.mem.eql(u8, text[0..2], "Ü"));
         // special cases for "u:"
         inline for (.{ // longer ones go first
             .{ "u:an", Self.Van },
@@ -360,22 +362,32 @@ pub const PinyinCharacter = struct {
 
     pub fn fromNumberedPinyin(text: []const u8, i: ?*usize) ?PinyinCharacter {
         const initial_res = PinyinInitial.fromText(text);
-        const next_ind = if (initial_res) |initial_res_inner| initial_res_inner.self.toString().len else 0;
+        const next_ind = if (initial_res) |initial_res_inner|
+            initial_res_inner.self.toString(initial_res_inner.proper).len
+        else
+            0;
         if (next_ind >= text.len) return null;
 
         const final_res = PinyinFinal.fromText(text[next_ind..]) orelse return null;
-        const proper = if (initial_res) initial_res.proper else final_res.proper;
-        var tone_ind = next_ind + final_res.self.toString(proper).len;
-        const tone: u3 = if (tone_ind >= text.len) 0 else switch (text[tone_ind]) {
-            '0', '5' => @as(u3, 0),
+        const proper = if (initial_res) |initial_res_inner|
+            initial_res_inner.proper
+        else
+            final_res.proper;
+
+        // find first character before a space or the end
+        var tone_ind: usize = 0;
+        while (tone_ind < text.len - 1) : (tone_ind += 1) {
+            if (std.ascii.isSpace(text[tone_ind + 1])) {
+                break;
+            }
+        }
+        const tone: u3 = switch (text[tone_ind]) {
+            //'0', '5' => @as(u3, 0),
             '1' => @as(u3, 1),
             '2' => @as(u3, 2),
             '3' => @as(u3, 3),
             '4' => @as(u3, 4),
-            else => blk: {
-                tone_ind -= 1;
-                break :blk @as(u3, 0);
-            },
+            else => @as(u3, 0),
         };
         if (i) |i_inner| i_inner.* += tone_ind;
         return PinyinCharacter{
@@ -392,24 +404,28 @@ pub const DictionaryPinyin = union(enum) {
     other: []const u8,
 };
 
-pub fn readPinyinCharacters(comptime max_chars: usize, text: []const u8) !std.BoundedArray(DictionaryPinyin, max_chars) {
-    var chars = std.BoundedArray(DictionaryPinyin, max_chars){};
+pub fn readPinyinCharacters(
+    buf: []DictionaryPinyin,
+    text: []const u8,
+) ![]const DictionaryPinyin {
+    var len: usize = 0;
     var i: usize = 0;
-    while (chars.len < chars.buffer.len) {
+    while (len < buf.len) : (len += 1) {
         while (i < text.len and !std.ascii.isAlNum(text[i])) : (i += 1) {}
         if (i >= text.len) break;
+
         if (PinyinCharacter.fromNumberedPinyin(text[i..], &i)) |c| {
-            chars.appendAssumeCapacity(.{ .pinyin = c });
+            buf[len] = .{ .pinyin = c };
             i += 1;
         } else {
             // hope that the next pinyin is separated by a space
             // find next space character
             const begin_i = i;
             while (i < text.len and !std.ascii.isSpace(text[i])) : (i += 1) {}
-            chars.appendAssumeCapacity(.{ .other = text[begin_i..i] });
+            buf[len] = .{ .other = text[begin_i..i] };
         }
     }
-    return chars;
+    return buf[0..len];
 }
 
 test "pinyin output" {
@@ -474,3 +490,10 @@ test "multiple pinyin characters input" {
     try std.testing.expect(std.meta.eql(DictionaryPinyin{ .pinyin = PinyinCharacter{ .proper = false, .initial = .B, .final = .U, .tone = 4 } }, chars[3]));
     try std.testing.expect(std.meta.eql(DictionaryPinyin{ .pinyin = PinyinCharacter{ .proper = false, .initial = .X, .final = .Ing, .tone = 2 } }, chars[4]));
 }
+
+pub const CharacterOrLength = union(enum) {
+    character: PinyinCharacter,
+    len: u15,
+};
+
+pub const PackedCharacterOrLength = ExtraPacked(CharacterOrLength);
