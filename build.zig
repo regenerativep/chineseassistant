@@ -1,34 +1,44 @@
 const std = @import("std");
+const GitRepoStep = @import("GitRepoStep.zig");
 
 pub fn build(b: *std.build.Builder) void {
-    // Standard target options allows the person running `zig build` to choose
-    // what target to build for. Here we do not override the defaults, which
-    // means any target is allowed, and the default is native. Other options
-    // for restricting supported target set are available.
-    const target = b.standardTargetOptions(.{});
-
-    // Standard release options allow the person running `zig build` to select
-    // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall.
     const mode = b.standardReleaseOptions();
 
-    const exe = b.addExecutable("chinesereader", "src/main.zig");
-    exe.setTarget(target);
-    exe.setBuildMode(mode);
-    exe.install();
+    const lib = b.addSharedLibrary("chinesereader", "src/main.zig", .unversioned);
+    lib.setBuildMode(mode);
+    lib.setTarget(.{ .cpu_arch = .wasm32, .os_tag = .freestanding });
+    lib.linkage = .dynamic;
+    //lib.strip = true;
 
-    const run_cmd = exe.run();
-    run_cmd.step.dependOn(b.getInstallStep());
-    if (b.args) |args| {
-        run_cmd.addArgs(args);
-    }
+    const ep_repo = GitRepoStep.create(b, .{
+        .url = "https://github.com/regenerativep/extrapacked.git",
+        .branch = "main",
+        .sha = "2e1a1d6034797caa58b608bf99aad5e74bb1cec7",
+    });
+    lib.step.dependOn(&ep_repo.step);
+    lib.addPackagePath("extrapacked", std.fs.path.join(
+        b.allocator,
+        &[_][]const u8{ ep_repo.getPath(&lib.step), "extrapacked.zig" },
+    ) catch unreachable);
 
-    const run_step = b.step("run", "Run the app");
-    run_step.dependOn(&run_cmd.step);
+    lib.export_symbol_names = &[_][]const u8{
+        "launch_export",
+        "receiveInputBuffer",
+        "retrieveDefinitions",
+    };
 
-    const exe_tests = b.addTest("src/main.zig");
-    exe_tests.setTarget(target);
-    exe_tests.setBuildMode(mode);
+    lib.install();
 
-    const test_step = b.step("test", "Run unit tests");
-    test_step.dependOn(&exe_tests.step);
+    const cp_wasm_cmd = b.addSystemCommand(&[_][]const u8{"cp"});
+    cp_wasm_cmd.addArtifactArg(lib);
+    cp_wasm_cmd.addArg("public/chinesereader.wasm");
+
+    const cp_chrejs_cmd = b.addSystemCommand(&[_][]const u8{
+        "cp",
+        "src/chinesereader.js",
+        "public/chinesereader.js",
+    });
+    cp_chrejs_cmd.step.dependOn(&cp_wasm_cmd.step);
+
+    b.getInstallStep().dependOn(&cp_chrejs_cmd.step);
 }

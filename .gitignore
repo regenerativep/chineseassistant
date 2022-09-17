@@ -5,3 +5,6 @@ src/pinyin2.zig
 src/zig-cache/
 public/chinesereader.js
 public/chinesereader.wasm
+zig-cache/
+zig-out/
+dep/
