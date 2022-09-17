@@ -214,7 +214,7 @@ var chre = {
 };
 
 function loadReaderWasm() {
-    WebAssembly.instantiateStreaming(fetch("chinesereader.wasm?v=2"), chre.imports)
+    WebAssembly.instantiateStreaming(fetch("chinesereader.wasm?v=3"), chre.imports)
         .then(cr => {
             //console.log(cr.instance.exports.add(5, 10));
             chre.launch(cr);
