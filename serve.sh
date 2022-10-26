@@ -1,4 +1,4 @@
 #!/bin/bash
 
-zig build -Drelease-small && miniserve ./public/ -p 8000
+zig build -Drelease-small -fstage1 && miniserve ./public/ -p 8000
 
