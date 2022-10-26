@@ -25,6 +25,9 @@ body {
 }
 #word_buffer {
     height: 50vh;
+    width: 90%;
+    margin-left: 3%;
+    padding: 8px;
     overflow-y: scroll;
     overflow-x: hidden;
     border: 2px solid black;
@@ -32,8 +35,8 @@ body {
     resize: vertical;
 }
 #def_box {
-    width: 100%;
-    height: 40vh;
+    width: 98%;
+    height: 30vh;
     overflow-y: scroll;
     overflow-x: hidden;
     border: 1px solid black;
@@ -41,6 +44,13 @@ body {
     margin: 0px;
     padding: 4px;
     resize: vertical;
+}
+#panel_license p {
+    margin: 12px;
+}
+#panel_definition {
+    position: sticky;
+    bottom: 0;
 }
 .defitem {
     padding: 0px;
@@ -97,9 +107,15 @@ body {
     padding 0px;
 }
 .navbar {
+    position: sticky;
+    top: 0;
+    width: 100%;
     background-color: white;
     height: 2em;
     width: 100%;
+    border-width: 2px;
+    border-color: black;
+    border-style: none none solid none;
 }
 .navitem {
     display: inline-block;
@@ -119,13 +135,13 @@ body {
     font-size: 16pt;
 }
 .navtitle {
-    float: right;
     display: inline-block;
-    /*width: 5em;*/
     height: 1.25em;
     text-align: center;
     padding: 0.25em;
     margin: 0.125em;
+    position: absolute;
+    right: 0;
 }
 .navtitle p {
     margin: 0px;
@@ -136,44 +152,71 @@ body {
     margin: 0px;
     margin-top: 4px;
     width: 100%;
-    background-color: darkgray;
+    background-color: rgb(102,102,102);
     resize: vertical;
+}
+.contentarea {
+    height: 100%;
+    overflow-y: scroll;
+    overflow-x: hidden;
+}
+.closebutton {
+    /*background-color: rgba(180, 0, 0);*/
+    display: inline-block;
+    position: absolute;
+    right: 0;
+    margin: 8px;
+    padding: 4px;
+    border-style: solid;
+    border-width: 2px;
+    border-color: black;
+}
+.closebutton p {
+    padding: 0px;
+    margin: 0px;
+}
+.closebutton:hover {
+    background-color: rgb(150, 0, 0);
 }
 </style>
 </head>
 
 <body>
-    <script src="chinesereader.js?v=3"></script>
+    <script src="chinesereader.js"></script>
 
-    <div>
-        <div class="navbar">
-            <div id="nav_input" class="navitem"><p>Input</p></div>
-            <div id="nav_definition" class="navitem"><p>Definition</p></div>
-            <div id="nav_debug" class="navitem"><p>Debug</p></div>
-            <div id="nav_none" class="navitem"><p>None</p></div>
-            <div id="nav_pinyin" class="navitem"><p>Pinyin</p></div>
-            <div id="nav_license" class="navitem"><p>License</p></div>
-            <div class="navtitle"><p>Chinese Text Reading Assistant</p></div>
-        </div>
-        <div id="panel_license" class="option_panel">
-            <p style="color:white;">
-            This project uses the <a href="https://www.mdbg.net/chinese/dictionary?page=cc-cedict">MDBG CC-CEDICT</a> by <a href="https://www.mdbg.net">MDBG</a> which is licensed under <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.
-            </p>
-            <a href="https://www.mdbg.net/chinese/dictionary"><img src="https://www.mdbg.net/logos/mdbg_dictionary_160x40.png" alt="MDBG Chinese-English dictionary" title="MDBG Chinese-English dictionary" style="border: solid 1px #c0c0c0" border="0" /></a>
-        </div>
+    <div id="panel_license" class="option_panel">
+        <div id="close_input" class="closebutton" onclick="togglePanel('license')"><p>X</p></div>
+        <p style="color:white;">Beware that not everything here is perfect. This program sometimes fails to pick the correct words that make up some characters and what pinyin belongs to some text.</p>
+        <p style="color:white;">
+        This project uses the <a href="https://www.mdbg.net/chinese/dictionary?page=cc-cedict">MDBG CC-CEDICT</a> by <a href="https://www.mdbg.net">MDBG</a> which is licensed under <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.
+        </p>
+        <a href="https://www.mdbg.net/chinese/dictionary"><img src="https://www.mdbg.net/logos/mdbg_dictionary_160x40.png" alt="MDBG Chinese-English dictionary" title="MDBG Chinese-English dictionary" style="border: solid 1px #c0c0c0" border="0" /></a>
+    </div>
+    <div class="navbar">
+        <div id="nav_input" class="navitem"><p>Input</p></div>
+        <div id="nav_definition" class="navitem"><p>Definition</p></div>
+        <div id="nav_debug" class="navitem"><p>Debug</p></div>
+        <div id="nav_none" class="navitem"><p>None</p></div>
+        <div id="nav_pinyin" class="navitem"><p>Pinyin</p></div>
+        <div id="nav_license" class="navitem"><p>Intro</p></div>
+        <div class="navtitle"><p>Chinese Text Reading Assistant</p></div>
+    </div>
+    <div class="contentarea">
         <div id="panel_input" class="option_panel">
+            <div id="close_input" class="closebutton" onclick="togglePanel('input')"><p>X</p></div>
             <textarea id="input_buffer"></textarea><br>
             <button type="button" id="input_button">Generate</button>
         </div>
-        <div id="panel_definition" class="option_panel">
-            <div id="def_box"></div>
+        <div>
+            <div id="word_buffer"></div>
         </div>
         <div id="panel_debug" class="option_panel">
             <div id="output_buffer"></div>
         </div>
     </div>
-    <div>
-        <div id="word_buffer"></div>
+    <div id="panel_definition" class="option_panel">
+        <div id="close_input" class="closebutton" onclick="togglePanel('definition')"><p>X</p></div>
+        <div id="def_box"></div>
     </div>
 </body>
 
