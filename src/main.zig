@@ -45,27 +45,29 @@ pub fn writeOutputBufferVoid(self: void, text: []const u8) OutputBufferWriterErr
 const OutputBufferWriterError = error{};
 const OutputBufferWriter = std.io.Writer(void, OutputBufferWriterError, writeOutputBufferVoid);
 
-pub const log_level: std.log.Level = .info;
+pub const std_options = struct {
+    pub const log_level: std.log.Level = .info;
 
-pub fn log(
-    comptime level: std.log.Level,
-    comptime scope: @TypeOf(.EnumLiteral),
-    comptime format: []const u8,
-    args: anytype,
-) void {
-    const scope_prefix = "(" ++ switch (scope) {
-        .default => @tagName(scope),
-        else => if (@enumToInt(level) <= @enumToInt(std.log.Level.err))
-            @tagName(scope)
-        else
-            return,
-    } ++ "): ";
+    pub fn logFn(
+        comptime level: std.log.Level,
+        comptime scope: @TypeOf(.EnumLiteral),
+        comptime format: []const u8,
+        args: anytype,
+    ) void {
+        const scope_prefix = "(" ++ switch (scope) {
+            .default => @tagName(scope),
+            else => if (@enumToInt(level) <= @enumToInt(std.log.Level.err))
+                @tagName(scope)
+            else
+                return,
+        } ++ "): ";
 
-    const prefix = "[" ++ level.asText() ++ "] " ++ scope_prefix;
+        const prefix = "[" ++ comptime level.asText() ++ "] " ++ scope_prefix;
 
-    var writer = OutputBufferWriter{ .context = {} };
-    nosuspend writer.print(prefix ++ format ++ "<br>", args) catch return;
-}
+        var writer = OutputBufferWriter{ .context = {} };
+        nosuspend writer.print(prefix ++ format ++ "<br>", args) catch return;
+    }
+};
 
 var gpa: std.heap.GeneralPurposeAllocator(.{}) = undefined;
 var alloc: mem.Allocator = undefined;
@@ -77,24 +79,25 @@ pub fn dictPinyinToString(
 ) ![]const u8 {
     var pinyin_text = std.ArrayList(u8).init(allocator);
     defer pinyin_text.deinit();
-    var last_is_other = false;
-    var first = true;
+    var last: ?pinyin.DictionaryPinyin = null;
     for (pinyins) |def_pinyin| {
         switch (def_pinyin) {
             .pinyin => |inner| {
-                if (last_is_other and !first) {
-                    try pinyin_text.append(' ');
-                }
+                if (last != null) switch (last.?) {
+                    .other => try pinyin_text.append(' '),
+                    .pinyin => |last_inner| if (last_inner.final.isAmbiguous(inner))
+                        try pinyin_text.append('\''),
+                };
                 try inner.writeToned(pinyin_text.writer());
             },
             .other => |inner| {
-                if (!last_is_other and !first) {
+                if (last != null and last.? != .other) {
                     try pinyin_text.append(' ');
                 }
                 try pinyin_text.appendSlice(inner);
             },
         }
-        first = false;
+        last = def_pinyin;
     }
     return pinyin_text.toOwnedSlice();
 }
@@ -110,7 +113,8 @@ pub fn receiveInputBufferE(text: []const u8) !void {
 
         var iter = peeker.variationIterator();
         blk: while (iter.next()) |slice| {
-            if (dict.get(slice)) |*def_iter| {
+            if (dict.get(slice)) |def_iter_c| {
+                var def_iter = def_iter_c;
                 // find next non-proper definition, otherwise just use proper def
                 var pinyin_buf: [50]pinyin.DictionaryPinyin = undefined;
                 while (try def_iter.next(&pinyin_buf)) |def| {
@@ -160,7 +164,8 @@ pub fn retrieveDefinitionsE(text: []const u8) !void {
         var iter = std.unicode.Utf8Iterator{ .bytes = text, .i = 0 };
         while (j <= cp_len - i) : (j += 1) {
             const sub_text = iter.peek(i);
-            if (dict.get(sub_text)) |*def_iter| {
+            if (dict.get(sub_text)) |def_iter_c| {
+                var def_iter = def_iter_c;
                 var pinyin_buf: [50]pinyin.DictionaryPinyin = undefined;
                 while (try def_iter.next(&pinyin_buf)) |def| {
                     const pinyin_text = try dictPinyinToString(alloc, def.pinyin);

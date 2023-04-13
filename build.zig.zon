@@ -1,0 +1,10 @@
+.{
+    .name = "chineseassistant",
+    .version = "0.1.0",
+    .dependencies = .{
+        .extrapacked = .{
+            .url = "https://github.com/regenerativep/extrapacked/archive/c9fd0546378ac8e1620bad01c4768d78fd70ef3f.tar.gz",
+            .hash = "12207901e5dc8449576824153ad6213489b9ace5c41c872cb081b99a0fc26739bf1b",
+        },
+    },
+}

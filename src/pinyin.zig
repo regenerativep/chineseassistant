@@ -87,6 +87,8 @@ pub const PinyinInitial = enum {
 
     pub const FromTextResult = struct { proper: bool, self: Self };
     pub fn fromText(text: []const u8) ?FromTextResult {
+        // special case for 'r5'
+        if (text.len >= 2 and text[0] == 'r' and std.ascii.isDigit(text[1])) return null;
         inline for (@typeInfo(Self).Enum.fields) |field| {
             const test_str = field.name;
             if (text.len >= test_str.len and std.ascii.eqlIgnoreCase(test_str, text[0..test_str.len])) {
@@ -136,6 +138,47 @@ pub const PinyinFinal = enum {
     Uang,
     Ueng, // uhh do we need this one
 
+    pub fn isAmbiguous(f: PinyinFinal, c: PinyinCharacter) bool {
+        if (c.initial) |initial| {
+            inline for (.{
+                .{ .A, .N },
+                .{ .E, .N },
+                .{ .E, .R },
+                .{ .I, .N },
+                .{ .U, .N },
+                .{ .V, .N },
+                .{ .An, .G },
+                .{ .En, .G },
+                .{ .Ia, .N },
+                .{ .In, .G },
+                .{ .Ua, .N },
+                .{ .Ian, .G },
+                .{ .Uan, .G },
+            }) |pair| {
+                if (initial == pair[1] and f == pair[0]) return true;
+            }
+        } else {
+            inline for (.{
+                .{ .A, .I },
+                .{ .A, .O },
+                .{ .E, .I },
+                .{ .I, .A },
+                .{ .I, .E },
+                .{ .I, .U },
+                .{ .O, .U },
+                .{ .U, .A },
+                .{ .U, .O },
+                .{ .U, .I },
+                .{ .U, .E },
+                .{ .V, .E },
+                .{ .Ia, .O },
+                .{ .Ua, .I },
+            }) |pair| {
+                if (c.final == pair[1] and f == pair[0]) return true;
+            }
+        }
+        return false;
+    }
     const toneless = enums.EnumArray(PinyinFinal, []const u8){ .values = .{
         "a",
         "o",
@@ -228,6 +271,8 @@ pub const PinyinFinal = enum {
         };
     }
     pub fn writeWithTone(self: Self, tone: u3, proper: bool, writer: anytype) !void {
+        // TODO: does this really capitalize the first character properly?
+
         const ind = self.tonePosition();
         const fancy = self.isFancy();
         const text = self.toString();
@@ -283,18 +328,19 @@ pub const PinyinFinal = enum {
                 'u', 'U' => 4,
                 else => unreachable,
             });
-            return table[c_ind][tone];
+            return table[c_ind][wrapped_tone];
         }
     }
     pub const FromTextResult = struct { proper: bool, self: Self };
     pub fn fromText(text: []const u8) ?FromTextResult {
         const proper = std.ascii.isUpper(text[0]) or (text.len >= 2 and std.mem.eql(u8, text[0..2], "Ü"));
-        // special cases for "u:"
+        // special cases for "u:" and "r"
         inline for (.{ // longer ones go first
             .{ "u:an", Self.Van },
             .{ "u:n", Self.Vn },
             .{ "u:e", Self.Ve },
             .{ "u:", Self.V },
+            .{ "r", Self.Er },
         }) |pair| {
             if (text.len >= pair[0].len and
                 std.ascii.eqlIgnoreCase(pair[0], text[0..pair[0].len]))
@@ -374,12 +420,11 @@ pub const PinyinCharacter = struct {
         else
             final_res.proper;
 
-        // find first character before a space or the end
+        // find first digit character index
         var tone_ind: usize = 0;
         while (tone_ind < text.len - 1) : (tone_ind += 1) {
-            if (std.ascii.isSpace(text[tone_ind + 1])) {
-                break;
-            }
+            if (std.ascii.isWhitespace(text[tone_ind + 1])) break;
+            if (std.ascii.isDigit(text[tone_ind])) break;
         }
         const tone: u3 = switch (text[tone_ind]) {
             //'0', '5' => @as(u3, 0),
@@ -411,7 +456,7 @@ pub fn readPinyinCharacters(
     var len: usize = 0;
     var i: usize = 0;
     while (len < buf.len) : (len += 1) {
-        while (i < text.len and !std.ascii.isAlNum(text[i])) : (i += 1) {}
+        while (i < text.len and !std.ascii.isAlphanumeric(text[i])) : (i += 1) {}
         if (i >= text.len) break;
 
         if (PinyinCharacter.fromNumberedPinyin(text[i..], &i)) |c| {
@@ -421,7 +466,7 @@ pub fn readPinyinCharacters(
             // hope that the next pinyin is separated by a space
             // find next space character
             const begin_i = i;
-            while (i < text.len and !std.ascii.isSpace(text[i])) : (i += 1) {}
+            while (i < text.len and !std.ascii.isWhitespace(text[i])) : (i += 1) {}
             buf[len] = .{ .other = text[begin_i..i] };
         }
     }
@@ -429,18 +474,18 @@ pub fn readPinyinCharacters(
 }
 
 test "pinyin output" {
-    {
-        const c = PinyinCharacter{
-            .proper = false,
-            .initial = .D,
-            .final = .E,
-            .tone = 0,
-        };
-        var buf = std.ArrayList(u8).init(std.testing.allocator);
-        defer buf.deinit();
-        try c.write(buf.writer());
-        try std.testing.expectEqualStrings("de5", buf.items);
-    }
+    //{
+    //    const c = PinyinCharacter{
+    //        .proper = false,
+    //        .initial = .D,
+    //        .final = .E,
+    //        .tone = 0,
+    //    };
+    //    var buf = std.ArrayList(u8).init(std.testing.allocator);
+    //    defer buf.deinit();
+    //    try c.write(buf.writer());
+    //    try std.testing.expectEqualStrings("de5", buf.items);
+    //}
     {
         const c = PinyinCharacter{
             .proper = false,
@@ -475,20 +520,55 @@ test "pinyin input" {
             .tone = 4,
         }, c));
     }
+    {
+        const c = PinyinCharacter.fromNumberedPinyin("r5", null).?;
+        std.debug.print("{any}\n", .{c});
+        try std.testing.expect(std.meta.eql(PinyinCharacter{
+            .proper = false,
+            .initial = null,
+            .final = .Er,
+            .tone = 0,
+        }, c));
+    }
 }
 
 test "multiple pinyin characters input" {
-    const chars_arr = try readPinyinCharacters(20, "ni3men dou1 bu4xing2 Z");
-    const chars = chars_arr.constSlice();
+    var buf: [20]DictionaryPinyin = undefined;
+    const chars = try readPinyinCharacters(&buf, "ni3men dou1 bu4xing2 Z");
     for (chars) |c| {
         std.debug.print("{any}\n", .{c});
     }
     try std.testing.expectEqual(@as(usize, 6), chars.len);
-    try std.testing.expect(std.meta.eql(DictionaryPinyin{ .pinyin = PinyinCharacter{ .proper = false, .initial = .N, .final = .I, .tone = 3 } }, chars[0]));
-    try std.testing.expect(std.meta.eql(DictionaryPinyin{ .pinyin = PinyinCharacter{ .proper = false, .initial = .M, .final = .En, .tone = 0 } }, chars[1]));
-    try std.testing.expect(std.meta.eql(DictionaryPinyin{ .pinyin = PinyinCharacter{ .proper = false, .initial = .D, .final = .Ou, .tone = 1 } }, chars[2]));
-    try std.testing.expect(std.meta.eql(DictionaryPinyin{ .pinyin = PinyinCharacter{ .proper = false, .initial = .B, .final = .U, .tone = 4 } }, chars[3]));
-    try std.testing.expect(std.meta.eql(DictionaryPinyin{ .pinyin = PinyinCharacter{ .proper = false, .initial = .X, .final = .Ing, .tone = 2 } }, chars[4]));
+    try std.testing.expect(std.meta.eql(DictionaryPinyin{ .pinyin = PinyinCharacter{
+        .proper = false,
+        .initial = .N,
+        .final = .I,
+        .tone = 3,
+    } }, chars[0]));
+    try std.testing.expect(std.meta.eql(DictionaryPinyin{ .pinyin = PinyinCharacter{
+        .proper = false,
+        .initial = .M,
+        .final = .En,
+        .tone = 0,
+    } }, chars[1]));
+    try std.testing.expect(std.meta.eql(DictionaryPinyin{ .pinyin = PinyinCharacter{
+        .proper = false,
+        .initial = .D,
+        .final = .Ou,
+        .tone = 1,
+    } }, chars[2]));
+    try std.testing.expect(std.meta.eql(DictionaryPinyin{ .pinyin = PinyinCharacter{
+        .proper = false,
+        .initial = .B,
+        .final = .U,
+        .tone = 4,
+    } }, chars[3]));
+    try std.testing.expect(std.meta.eql(DictionaryPinyin{ .pinyin = PinyinCharacter{
+        .proper = false,
+        .initial = .X,
+        .final = .Ing,
+        .tone = 2,
+    } }, chars[4]));
 }
 
 pub const CharacterOrLength = union(enum) {

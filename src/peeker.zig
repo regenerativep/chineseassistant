@@ -24,10 +24,21 @@ pub fn CodepointArrayPeeker(comptime max_bytes: usize, comptime max_codepoints: 
             return peeker;
         }
 
+        pub fn nextCodepointSlice(it: *unicode.Utf8Iterator) ![]const u8 {
+            if (it.i >= it.bytes.len) {
+                return error.Null;
+            }
+
+            const cp_len = unicode.utf8ByteSequenceLength(it.bytes[it.i]) catch unreachable;
+            it.i += cp_len;
+            return it.bytes[it.i - cp_len .. it.i];
+        }
         pub fn fill(self: *Self) void {
             while (true) {
                 var prev_i = self.iter.i;
-                if (self.iter.nextCodepointSlice()) |slice| {
+                // we need our own function here because the assumption that valid
+                // pointers cannot be 0 is false (it.bytes can point to byte 0)
+                if (nextCodepointSlice(&self.iter)) |slice| {
                     const codepoint_doesnt_fit = self.byte_buf.buffer.len - self.byte_buf.len < slice.len;
                     const codepoint_ends_no_space = self.codepoint_ends.buffer.len - self.codepoint_ends.len == 0;
                     if (codepoint_doesnt_fit or codepoint_ends_no_space) {
@@ -37,7 +48,7 @@ pub fn CodepointArrayPeeker(comptime max_bytes: usize, comptime max_codepoints: 
                         self.codepoint_ends.appendAssumeCapacity(self.byte_buf.len + slice.len);
                         self.byte_buf.appendSliceAssumeCapacity(slice);
                     }
-                } else {
+                } else |_| {
                     break;
                 }
             }

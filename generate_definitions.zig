@@ -6,7 +6,7 @@ const assert = std.debug.assert;
 
 const pinyin = @import("src/pinyin.zig");
 
-const ExtraPacked = @import("dep/extrapacked.git/extrapacked.zig").ExtraPacked;
+const ExtraPacked = @import("extrapacked").ExtraPacked;
 
 pub fn nextDelim(text: []const u8, delim: u8, from: usize) ?usize {
     var i = from;
@@ -38,7 +38,7 @@ pub const WordDefinition = struct {
     }
 };
 pub fn trim(text: []const u8) []const u8 {
-    return mem.trim(u8, text, &std.ascii.spaces);
+    return mem.trim(u8, text, &std.ascii.whitespace);
 }
 pub const DefinitionIterator = struct {
     lines: mem.SplitIterator(u8),
