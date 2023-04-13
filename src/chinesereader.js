@@ -53,11 +53,17 @@ const clear_output_buffer = function() {
     elem.innerHTML = "";
 }
 
+const get_buffer = function(len) {
+    const ptr = chre.exports.getBuffer(len);
+    if(ptr == 0) throw new Error("Buffer OOM");
+    return new Uint8Array(chre.exports.memory.buffer, ptr, len);
+};
+
 var input_buffer_id = "input_buffer";
 const read_input_buffer = function() {
     var elem = document.getElementById(input_buffer_id);
     const bytes = toUTF8Array(elem.value); // utf8!
-    const arr = new Uint8Array(chre.exports.memory.buffer, 0, bytes.length);
+    const arr = get_buffer(bytes.length);
     for(let i = 0; i < bytes.length; i += 1) {
         arr[i] = bytes[i];
     }
@@ -120,14 +126,18 @@ function clear_def_box() {
     let box = document.getElementById(def_box);
     box.innerHTML = "";
 }
-const add_def = function(s_ptr, s_len, p_ptr, p_len, d_ptr, d_len) {
+const add_def = function(s_ptr, s_len, t_ptr, t_len, p_ptr, p_len, d_ptr, d_len) {
     let simplified = getString(s_ptr, s_len);
+    let traditional = getString(t_ptr, t_len);
     let pinyin = getString(p_ptr, p_len);
     let definition = getString(d_ptr, d_len);
 
     let simp_elem = document.createElement("p");
     simp_elem.setAttribute("class", "defitem_simp");
     simp_elem.innerHTML = simplified;
+    let trad_elem = document.createElement("p");
+    trad_elem.setAttribute("class", "defitem_simp");
+    trad_elem.innerHTML = traditional;
     let pinyin_elem = document.createElement("p");
     pinyin_elem.setAttribute("class", "defitem_pinyin");
     pinyin_elem.innerHTML = pinyin;
@@ -137,6 +147,7 @@ const add_def = function(s_ptr, s_len, p_ptr, p_len, d_ptr, d_len) {
     let defelem = document.createElement("p");
     defelem.setAttribute("class", "defitem");
     defelem.appendChild(simp_elem);
+    defelem.appendChild(trad_elem);
     defelem.appendChild(pinyin_elem);
     defelem.appendChild(def_elem);
     let box = document.getElementById(def_box);
@@ -144,7 +155,7 @@ const add_def = function(s_ptr, s_len, p_ptr, p_len, d_ptr, d_len) {
 }
 function showDefinition(word) {
     const bytes = toUTF8Array(word);
-    const arr = new Uint8Array(chre.exports.memory.buffer, 0, bytes.length);
+    const arr = get_buffer(bytes.length);
     for(let i = 0; i < bytes.length; i += 1) {
         arr[i] = bytes[i];
     }
@@ -214,10 +225,13 @@ var chre = {
 };
 
 function loadReaderWasm() {
-    WebAssembly.instantiateStreaming(fetch("chinesereader.wasm"), chre.imports)
-        .then(cr => {
-            //console.log(cr.instance.exports.add(5, 10));
-            chre.launch(cr);
+    // this is kind of a slow way to do it, but i couldnt get the other way
+    // to work on my private server
+    fetch(new URL("chinesereader.wasm?v=1", document.location))
+        .then(response => response.arrayBuffer())
+        .then(bytes => WebAssembly.instantiate(bytes, chre.imports))
+        .then(obj => {
+            chre.launch(obj);
         });
 }
 window.addEventListener("load", () => {
@@ -233,6 +247,9 @@ window.addEventListener("load", () => {
         });
         togglePanel(name);
     });
+    togglePanel("pinyin");
+    togglePanel("debug");
+    togglePanel("definition");
     document.getElementById("nav_none").addEventListener("click", () => {
         panels.forEach((name) => {
             if(panelEnabled(name)) {

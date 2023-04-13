@@ -45,6 +45,7 @@ pub fn build(b: *std.build.Builder) void {
             "launch_export",
             "receiveInputBuffer",
             "retrieveDefinitions",
+            "getBuffer",
         };
 
         b.installArtifact(lib);

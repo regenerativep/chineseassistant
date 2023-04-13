@@ -57,7 +57,7 @@ pub const WordMap = struct {
             ind = @intCast(usize, counting_reader.bytes_read);
             errdefer std.log.info("trad len: {}", .{trad_len});
             try reader.skipBytes(trad_len, .{});
-            //const trad = data[ind .. ind + trad_len];
+            const trad = data[ind .. ind + trad_len];
 
             const def_len = try reader.readIntLittle(u16);
             ind = @intCast(usize, counting_reader.bytes_read);
@@ -82,11 +82,19 @@ pub const WordMap = struct {
             }
 
             const end = @intCast(usize, counting_reader.bytes_read);
-            var res = self.inner.getOrPutAssumeCapacity(simp);
-            var node = try alloc.create(StringLL.Node);
-            node.data = data[begin..end];
-            if (!res.found_existing) res.value_ptr.* = .{};
-            res.value_ptr.prepend(node);
+
+            var node_s = try alloc.create(StringLL.Node);
+            errdefer alloc.destroy(node_s);
+            var node_t = try alloc.create(StringLL.Node);
+
+            var res_s = self.inner.getOrPutAssumeCapacity(simp);
+            var res_t = self.inner.getOrPutAssumeCapacity(trad);
+            node_s.data = data[begin..end];
+            node_t.data = data[begin..end];
+            if (!res_s.found_existing) res_s.value_ptr.* = .{};
+            if (!res_t.found_existing) res_t.value_ptr.* = .{};
+            res_s.value_ptr.prepend(node_s);
+            res_t.value_ptr.prepend(node_t);
         }
 
         // reverse the LLs

@@ -11,8 +11,8 @@ const CodepointArrayPeeker = @import("peeker.zig").CodepointArrayPeeker;
 extern "buffer" fn write_output_buffer(ptr: [*]const u8, len: usize) void;
 extern "buffer" fn clear_output_buffer() void;
 extern "buffer" fn add_word(
-    simp_ptr: [*]const u8,
-    simp_len: usize,
+    char_ptr: [*]const u8,
+    char_len: usize,
     pinyin_ptr: [*]const u8,
     pinyin_len: usize,
 ) void;
@@ -20,6 +20,8 @@ extern "buffer" fn add_not_word(ptr: [*]const u8, len: usize) void;
 extern "buffer" fn add_def(
     simp_ptr: [*]const u8,
     simp_len: usize,
+    trad_ptr: [*]const u8,
+    trad_len: usize,
     pinyin_ptr: [*]const u8,
     pinyin_len: usize,
     def_ptr: [*]const u8,
@@ -29,8 +31,8 @@ extern "buffer" fn add_def(
 pub fn writeOutputBuffer(text: []const u8) void {
     write_output_buffer(text.ptr, text.len);
 }
-pub fn addWord(simp: []const u8, p: []const u8) void {
-    add_word(simp.ptr, simp.len, p.ptr, p.len);
+pub fn addWord(chars: []const u8, p: []const u8) void {
+    add_word(chars.ptr, chars.len, p.ptr, p.len);
 }
 pub fn addNotWord(text: []const u8) void {
     add_not_word(text.ptr, text.len);
@@ -72,6 +74,15 @@ pub const std_options = struct {
 var gpa: std.heap.GeneralPurposeAllocator(.{}) = undefined;
 var alloc: mem.Allocator = undefined;
 var dict: words.WordMap = undefined;
+
+var buf: []u8 = &.{};
+
+export fn getBuffer(len: usize) ?[*]u8 {
+    if (buf.len < len) {
+        buf = alloc.realloc(buf, len) catch return null;
+    }
+    return buf.ptr;
+}
 
 pub fn dictPinyinToString(
     allocator: mem.Allocator,
@@ -127,7 +138,8 @@ pub fn receiveInputBufferE(text: []const u8) !void {
                     // add entire word as word
                     const pinyin_text = try dictPinyinToString(alloc, def.pinyin);
                     defer alloc.free(pinyin_text);
-                    addWord(def.simplified, pinyin_text);
+                    //addWord(def.simplified, pinyin_text);
+                    addWord(slice, pinyin_text);
 
                     // remove word from buffer
                     peeker.removeFirstNCodepoints(iter.i + 1);
@@ -173,6 +185,8 @@ pub fn retrieveDefinitionsE(text: []const u8) !void {
                     add_def(
                         def.simplified.ptr,
                         def.simplified.len,
+                        def.traditional.ptr,
+                        def.traditional.len,
                         pinyin_text.ptr,
                         pinyin_text.len,
                         def.definition.ptr,
@@ -196,7 +210,9 @@ pub fn launch() !void {
     //writeOutputBuffer("hello wrld!..<br>:(");
     gpa = .{};
     alloc = gpa.allocator();
+    std.log.info("initializing dictionary", .{});
     dict = try words.WordMap.init(alloc);
+    std.log.info("dictionary initialized", .{});
 }
 
 export fn launch_export() bool {
