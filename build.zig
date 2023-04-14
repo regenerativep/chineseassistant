@@ -15,7 +15,7 @@ pub fn build(b: *std.build.Builder) void {
 
         const exe = b.addExecutable(.{
             .name = "chineseassistant-gendef",
-            .root_source_file = .{ .path = "generate_definitions.zig" },
+            .root_source_file = .{ .path = "src/generate_definitions.zig" },
             .target = target,
             .optimize = optimize,
         });

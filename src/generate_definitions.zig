@@ -4,7 +4,7 @@ const unicode = std.unicode;
 const mem = std.mem;
 const assert = std.debug.assert;
 
-const pinyin = @import("src/pinyin.zig");
+const pinyin = @import("pinyin.zig");
 
 const ExtraPacked = @import("extrapacked").ExtraPacked;
 

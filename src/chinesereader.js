@@ -161,9 +161,7 @@ function showDefinition(word) {
     }
     clear_def_box();
     chre.exports.retrieveDefinitions(arr.byteOffset, arr.length);
-    if(!panelEnabled("definition")) {
-        togglePanel("definition");
-    }
+    selectPanel("definition");
 }
 
 var enabled_panels = {};
@@ -171,6 +169,12 @@ function panelEnabled(name) {
     return typeof enabled_panels[name] !== "undefined" && !!enabled_panels[name];
 }
 
+var pinyin_enabled = false;
+
+function togglePinyin() {
+    pinyin_enabled = !pinyin_enabled;
+    setPinyinEnabled(pinyin_enabled);
+}
 function setPinyinEnabled(on) {
     let attr;
     if(on) {
@@ -183,30 +187,52 @@ function setPinyinEnabled(on) {
         let elem = elems[i];
         elem.setAttribute("style", attr);
     }
+
+    let navelem = document.getElementById("nav_pinyin");
+    if(on) {
+        navelem.setAttribute("style", "background-color:lightblue;");
+    } else {
+        navelem.setAttribute("style", "background-color:gray;");
+    }
 }
 
-function togglePanel(name) {
+function hidePanels() {
+    ["license", "input", "definition", "debug"].forEach((name) => {
+        let navelem = document.getElementById("nav_" + name);
+        let panelelem = document.getElementById("panel_" + name);
+        navelem.setAttribute("style", "background-color:gray;");
+        panelelem.setAttribute("style", "display:none;");
+    });
+}
+function selectPanel(name) {
+    hidePanels();
     let navelem = document.getElementById("nav_" + name);
     let panelelem = document.getElementById("panel_" + name);
-    if(panelEnabled(name)) {
-        navelem.setAttribute("style", "background-color:red;");
-        if(name === "pinyin") {
-            setPinyinEnabled(false);
-        } else {
-            panelelem.setAttribute("style", "display:none;");
-        }
-        enabled_panels[name] = false;
-    }
-    else {
-        navelem.setAttribute("style", "");
-        if(name === "pinyin") {
-            setPinyinEnabled(true);
-        } else {
-            panelelem.setAttribute("style", "display:block;");
-        }
-        enabled_panels[name] = true;
-    }
+    navelem.setAttribute("style", "background-color:lightblue;");
+    panelelem.setAttribute("style", "display:block;");
 }
+//function togglePanel(name) {
+//    let navelem = document.getElementById("nav_" + name);
+//    let panelelem = document.getElementById("panel_" + name);
+//    if(panelEnabled(name)) {
+//        navelem.setAttribute("style", "background-color:red;");
+//        if(name === "pinyin") {
+//            setPinyinEnabled(false);
+//        } else {
+//            panelelem.setAttribute("style", "display:none;");
+//        }
+//        enabled_panels[name] = false;
+//    }
+//    else {
+//        navelem.setAttribute("style", "");
+//        if(name === "pinyin") {
+//            setPinyinEnabled(true);
+//        } else {
+//            panelelem.setAttribute("style", "display:block;");
+//        }
+//        enabled_panels[name] = true;
+//    }
+//}
 
 
 var chre = {
@@ -227,34 +253,29 @@ var chre = {
 function loadReaderWasm() {
     // this is kind of a slow way to do it, but i couldnt get the other way
     // to work on my private server
-    fetch(new URL("chinesereader.wasm?v=1", document.location))
+    fetch(new URL("chinesereader.wasm?v=3", document.location))
         .then(response => response.arrayBuffer())
         .then(bytes => WebAssembly.instantiate(bytes, chre.imports))
         .then(obj => {
             chre.launch(obj);
         });
 }
+
+var recent_updates = 0;
+var update_delay = 1000;
+
+function updateInput() {
+    recent_updates += 1;
+    setTimeout(() => {
+        recent_updates -= 1;
+        if(recent_updates === 0) {
+            clear_word_buffer();
+            read_input_buffer();
+        }
+    }, update_delay);
+}
+
 window.addEventListener("load", () => {
     loadReaderWasm();
-    document.getElementById("input_button").addEventListener("click", () => {
-        clear_word_buffer();
-        read_input_buffer();
-    });
-    let panels = ["input", "definition", "debug", "pinyin", "license"];
-    panels.forEach((name) => {
-        document.getElementById("nav_" + name).addEventListener("click", () => {
-            togglePanel(name);
-        });
-        togglePanel(name);
-    });
-    togglePanel("pinyin");
-    togglePanel("debug");
-    togglePanel("definition");
-    document.getElementById("nav_none").addEventListener("click", () => {
-        panels.forEach((name) => {
-            if(panelEnabled(name)) {
-                togglePanel(name);
-            }
-        });
-    });
+    selectPanel("license");
 });

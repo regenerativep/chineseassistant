@@ -169,6 +169,8 @@ export fn receiveInputBuffer(ptr: [*]const u8, len: usize) bool {
 }
 
 pub fn retrieveDefinitionsE(text: []const u8) !void {
+    var retrieved = std.ArrayList(usize).init(alloc);
+    defer retrieved.deinit();
     const cp_len = try std.unicode.utf8CountCodepoints(text);
     var i = cp_len;
     while (i > 0) : (i -= 1) {
@@ -177,6 +179,14 @@ pub fn retrieveDefinitionsE(text: []const u8) !void {
         while (j <= cp_len - i) : (j += 1) {
             const sub_text = iter.peek(i);
             if (dict.get(sub_text)) |def_iter_c| {
+                const current_ptr = @ptrToInt(def_iter_c.inner);
+                var already_retrieved = false;
+                for (retrieved.items) |ptr| {
+                    if (ptr == current_ptr) already_retrieved = true;
+                }
+                if (already_retrieved) continue;
+                try retrieved.append(current_ptr);
+
                 var def_iter = def_iter_c;
                 var pinyin_buf: [50]pinyin.DictionaryPinyin = undefined;
                 while (try def_iter.next(&pinyin_buf)) |def| {

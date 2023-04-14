@@ -85,16 +85,19 @@ pub const WordMap = struct {
 
             var node_s = try alloc.create(StringLL.Node);
             errdefer alloc.destroy(node_s);
-            var node_t = try alloc.create(StringLL.Node);
 
             var res_s = self.inner.getOrPutAssumeCapacity(simp);
-            var res_t = self.inner.getOrPutAssumeCapacity(trad);
             node_s.data = data[begin..end];
-            node_t.data = data[begin..end];
             if (!res_s.found_existing) res_s.value_ptr.* = .{};
-            if (!res_t.found_existing) res_t.value_ptr.* = .{};
             res_s.value_ptr.prepend(node_s);
-            res_t.value_ptr.prepend(node_t);
+
+            if (!std.mem.eql(u8, simp, trad)) {
+                var node_t = try alloc.create(StringLL.Node);
+                var res_t = self.inner.getOrPutAssumeCapacity(trad);
+                node_t.data = data[begin..end];
+                if (!res_t.found_existing) res_t.value_ptr.* = .{};
+                res_t.value_ptr.prepend(node_t);
+            }
         }
 
         // reverse the LLs
