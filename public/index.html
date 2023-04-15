@@ -35,11 +35,11 @@ body {
     resize: vertical;
 }
 #def_box {
-    width: 98%;
+    /*width: 98%;*/
     height: 30vh;
     overflow-y: scroll;
     overflow-x: hidden;
-    border: 1px solid black;
+    /*border: 1px solid black;*/
     /*background-color: black;*/
     margin: 0px;
     padding: 4px;
@@ -63,7 +63,7 @@ body {
     padding: 4px;
     margin: 2px;
     font-size: 16pt;
-    border: 1px solid black;
+    /*border: 1px solid black;*/
     display: inline-block;
     background-color: white;
 }
@@ -71,7 +71,7 @@ body {
     padding: 4px;
     margin: 2px;
     font-size: 10pt;
-    border: 1px solid black;
+    /*border: 1px solid black;*/
     display: inline-block;
     background-color: white;
 }
@@ -79,7 +79,7 @@ body {
     padding: 4px;
     margin: 2px;
     font-size: 12pt;
-    border: 1px solid black;
+    /*border: 1px solid black;*/
     display: inline-block;
     background-color: white;
 }
@@ -107,15 +107,15 @@ body {
     padding 0px;
 }
 .navbar {
-    position: sticky;
+    /*position: sticky;*/
     top: 0;
     width: 100%;
     background-color: white;
-    height: 2em;
+    /*height: 2em;*/
     width: 100%;
-    border-width: 2px;
+    /*border-width: 2px;
     border-color: black;
-    border-style: none none solid none;
+    border-style: none none solid none;*/
 }
 .navitem {
     display: inline-block;
@@ -182,33 +182,35 @@ body {
 </head>
 
 <body>
-    <script src="chinesereader.js?v=3"></script>
+    <script src="chinesereader.js?v=4"></script>
 
-    <div class="navbar">
-        <div id="nav_license" class="navitem" onclick="selectPanel('license')"><p>Intro</p></div>
-        <div id="nav_input" class="navitem" onclick="selectPanel('input')"><p>Input</p></div>
-        <div id="nav_definition" class="navitem" onclick="selectPanel('definition')"><p>Definition</p></div>
-        <div id="nav_debug" class="navitem" onclick="selectPanel('debug')"><p>Debug</p></div>
-        <div id="nav_pinyin" class="navitem" onclick="togglePinyin()"><p>Pinyin</p></div>
-        <div id="nav_none" class="navitem" onclick="hidePanels()"><p>X</p></div>
-    </div>
-    <div id="panel_license" class="option_panel">
-        <!--<div id="close_input" class="closebutton" onclick="togglePanel('license')"><p>X</p></div>-->
-        <h2 style="color:white;">Chinese Text Reading Assistant</h2>
-        <p style="color:white;">Beware that not everything here is perfect. This program sometimes fails to pick the correct words that make up some characters and what pinyin belongs to some text.</p>
-        <p style="color:white;">
-        This project uses the <a href="https://www.mdbg.net/chinese/dictionary?page=cc-cedict">MDBG CC-CEDICT</a> by <a href="https://www.mdbg.net">MDBG</a> which is licensed under <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.
-        </p>
-        <a href="https://www.mdbg.net/chinese/dictionary"><img src="https://www.mdbg.net/logos/mdbg_dictionary_160x40.png" alt="MDBG Chinese-English dictionary" title="MDBG Chinese-English dictionary" style="border: solid 1px #c0c0c0" border="0" /></a>
-    </div>
-    <div id="panel_input" class="option_panel">
-        <textarea id="input_buffer" oninput="updateInput()"></textarea><br>
-    </div>
-    <div id="panel_debug" class="option_panel">
-        <div id="output_buffer"></div>
-    </div>
-    <div id="panel_definition" class="option_panel">
-        <div id="def_box"></div>
+    <div style="position:sticky;">
+        <div class="navbar">
+            <div id="nav_license" class="navitem" onclick="selectPanel('license')"><p>Intro</p></div>
+            <div id="nav_input" class="navitem" onclick="selectPanel('input')"><p>Input</p></div>
+            <div id="nav_definition" class="navitem" onclick="selectPanel('definition')"><p>Definition</p></div>
+            <div id="nav_debug" class="navitem" onclick="selectPanel('debug')"><p>Debug</p></div>
+            <div id="nav_pinyin" class="navitem" onclick="togglePinyin()"><p>Pinyin</p></div>
+            <div id="nav_none" class="navitem" onclick="hidePanels()"><p>X</p></div>
+        </div>
+        <div id="panel_license" class="option_panel">
+            <!--<div id="close_input" class="closebutton" onclick="togglePanel('license')"><p>X</p></div>-->
+            <h2 style="color:white;">Chinese Text Reading Assistant</h2>
+            <p style="color:white;">Beware that not everything here is perfect. This program sometimes fails to pick the correct words that make up some characters and what pinyin belongs to some text.</p>
+            <p style="color:white;">
+            This project uses the <a href="https://www.mdbg.net/chinese/dictionary?page=cc-cedict">MDBG CC-CEDICT</a> by <a href="https://www.mdbg.net">MDBG</a> which is licensed under <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.
+            </p>
+            <a href="https://www.mdbg.net/chinese/dictionary"><img src="https://www.mdbg.net/logos/mdbg_dictionary_160x40.png" alt="MDBG Chinese-English dictionary" title="MDBG Chinese-English dictionary" style="border: solid 1px #c0c0c0" border="0" /></a>
+        </div>
+        <div id="panel_input" class="option_panel">
+            <textarea id="input_buffer" oninput="updateInput()"></textarea><br>
+        </div>
+        <div id="panel_debug" class="option_panel">
+            <div id="output_buffer"></div>
+        </div>
+        <div id="panel_definition" class="option_panel">
+            <div id="def_box"></div>
+        </div>
     </div>
     <div class="contentarea" id="word_buffer"></div>
 </body>

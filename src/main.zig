@@ -118,6 +118,10 @@ pub fn receiveInputBufferE(text: []const u8) !void {
         words.LongestSimplifiedByteLen,
         words.LongestSimplifiedCodepointLen,
     ).init(text);
+
+    var not_word = std.ArrayList(u8).init(alloc);
+    defer not_word.deinit();
+
     while (true) {
         peeker.fill();
         if (peeker.byte_buf.len == 0) break;
@@ -139,6 +143,11 @@ pub fn receiveInputBufferE(text: []const u8) !void {
                     const pinyin_text = try dictPinyinToString(alloc, def.pinyin);
                     defer alloc.free(pinyin_text);
                     //addWord(def.simplified, pinyin_text);
+
+                    if (not_word.items.len > 0) {
+                        addNotWord(not_word.items);
+                        not_word.clearRetainingCapacity();
+                    }
                     addWord(slice, pinyin_text);
 
                     // remove word from buffer
@@ -151,13 +160,21 @@ pub fn receiveInputBufferE(text: []const u8) !void {
             // add first codepoint as non-word
             const codepoint = peeker.firstCodepointInBuffer();
             if (codepoint[0] == '\n') {
+                if (not_word.items.len > 0) {
+                    addNotWord(not_word.items);
+                    not_word.clearRetainingCapacity();
+                }
                 addNotWord("<br>");
             } else {
-                addNotWord(codepoint);
+                try not_word.appendSlice(codepoint);
+                //addNotWord(codepoint);
             }
             // remove first codepoint from buffer
             peeker.removeFirstNCodepoints(1);
         }
+    }
+    if (not_word.items.len > 0) {
+        addNotWord(not_word.items);
     }
 }
 export fn receiveInputBuffer(ptr: [*]const u8, len: usize) bool {
