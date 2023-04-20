@@ -88,7 +88,7 @@ const add_not_word = function(s_ptr, s_len) {
     }
     else {
         let textDiv = document.createElement("div");
-        textDiv.setAttribute("class", "word"); // do something else maybe?
+        textDiv.setAttribute("class", "word");
         textDiv.innerHTML = text;
         let elem = document.getElementById(word_buffer);
         elem.appendChild(textDiv);
@@ -106,12 +106,9 @@ function addWordToBuffer(simplified, pinyin) {
     simplifiedP.innerHTML = simplified;
     let pinyinP = document.createElement("p");
     pinyinP.setAttribute("class", "word_pinyin");
-    if(!panelEnabled("pinyin")) {
-        pinyinP.setAttribute("style", "display:none;");
-    }
     pinyinP.innerHTML = pinyin;
     let wordDiv = document.createElement("div");
-    wordDiv.setAttribute("class", "word");
+    wordDiv.setAttribute("class", "word wordhover");
     wordDiv.appendChild(simplifiedP);
     wordDiv.appendChild(pinyinP);
     wordDiv.addEventListener("click", function() {
@@ -176,22 +173,13 @@ function togglePinyin() {
     setPinyinEnabled(pinyin_enabled);
 }
 function setPinyinEnabled(on) {
-    let attr;
-    if(on) {
-        attr = "";
-    } else {
-        attr = "display:none;";
-    }
-    let elems = document.getElementsByClassName("word_pinyin");
-    for(let i = 0; i < elems.length; i += 1) {
-        let elem = elems[i];
-        elem.setAttribute("style", attr);
-    }
-
+    let style = document.getElementById("word_buffer_style");
     let navelem = document.getElementById("nav_pinyin");
     if(on) {
+        style.innerHTML = "";
         navelem.setAttribute("style", "background-color:lightblue;");
     } else {
+        style.innerHTML = "#word_buffer .word .word_pinyin { display: none; }";
         navelem.setAttribute("style", "background-color:gray;");
     }
 }
@@ -253,7 +241,7 @@ var chre = {
 function loadReaderWasm() {
     // this is kind of a slow way to do it, but i couldnt get the other way
     // to work on my private server
-    fetch(new URL("chinesereader.wasm?v=3", document.location))
+    fetch(new URL("chinesereader.wasm?v=4", document.location))
         .then(response => response.arrayBuffer())
         .then(bytes => WebAssembly.instantiate(bytes, chre.imports))
         .then(obj => {
@@ -278,4 +266,6 @@ function updateInput() {
 window.addEventListener("load", () => {
     loadReaderWasm();
     selectPanel("license");
+    setPinyinEnabled(false);
+    updateInput();
 });

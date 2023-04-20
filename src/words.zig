@@ -4,8 +4,8 @@ const DictionaryPinyin = pinyin.DictionaryPinyin;
 const ExtraPacked = @import("extrapacked").ExtraPacked;
 const DictValues = @import("gen/dict_values.zig");
 
-pub const LongestSimplifiedCodepointLen = DictValues.LongestSimplifiedCodepointLen;
-pub const LongestSimplifiedByteLen = DictValues.LongestSimplifiedByteLen;
+pub const LongestCodepointLen = DictValues.LongestCodepointLen;
+pub const LongestByteLen = DictValues.LongestByteLen;
 pub const DefinitionCount = DictValues.DefinitionCount;
 
 pub const WordDefinition = struct {
@@ -13,6 +13,14 @@ pub const WordDefinition = struct {
     traditional: []const u8,
     pinyin: []const DictionaryPinyin,
     definition: []const u8,
+
+    pub fn deinit(self: *WordDefinition, alloc: std.mem.Allocator) void {
+        alloc.free(self.simplified);
+        alloc.free(self.traditional);
+        alloc.free(self.pinyin);
+        alloc.free(self.definition);
+        self.* = undefined;
+    }
 };
 
 const data = @embedFile("gen/words.bin");

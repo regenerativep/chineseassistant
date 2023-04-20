@@ -83,11 +83,17 @@ pub fn main() !void {
     //    std.log.info("def {}: {any}", .{ i, def });
     //}
     var longest: WordDefinition = defs.items[0];
-    var longest_len: usize = try std.unicode.utf8CountCodepoints(longest.simplified);
+    var longest_len: usize = 0; //try std.unicode.utf8CountCodepoints(longest.simplified);
     var longest_byte_len: usize = 0;
     for (defs.items) |def| {
-        longest_byte_len = std.math.max(longest_byte_len, def.simplified.len);
-        var len: usize = try std.unicode.utf8CountCodepoints(def.simplified);
+        longest_byte_len = std.math.max(longest_byte_len, std.math.max(
+            def.simplified.len,
+            def.traditional.len,
+        ));
+        var len: usize = std.math.max(
+            try std.unicode.utf8CountCodepoints(def.simplified),
+            try std.unicode.utf8CountCodepoints(def.traditional),
+        );
         if (len > longest_len) {
             longest_len = len;
             longest = def;
@@ -100,8 +106,8 @@ pub fn main() !void {
         var target_file = try fs.cwd().createFile(target_filename, .{});
         defer target_file.close();
         try target_file.writer().print(
-            \\pub const LongestSimplifiedCodepointLen = {};
-            \\pub const LongestSimplifiedByteLen = {};
+            \\pub const LongestCodepointLen = {};
+            \\pub const LongestByteLen = {};
             \\pub const DefinitionCount = {};
             \\
         , .{ longest_len, longest_byte_len, defs.items.len });

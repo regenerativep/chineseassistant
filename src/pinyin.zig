@@ -452,7 +452,7 @@ pub const DictionaryPinyin = union(enum) {
 pub fn readPinyinCharacters(
     buf: []DictionaryPinyin,
     text: []const u8,
-) ![]const DictionaryPinyin {
+) []const DictionaryPinyin {
     var len: usize = 0;
     var i: usize = 0;
     while (len < buf.len) : (len += 1) {
