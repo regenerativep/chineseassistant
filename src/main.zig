@@ -27,6 +27,7 @@ extern "buffer" fn add_def(
     def_ptr: [*]const u8,
     def_len: usize,
 ) void;
+extern "buffer" fn request_file(ptr: [*]const u8, len: usize) ?[*]u8;
 
 pub fn writeOutputBuffer(text: []const u8) void {
     write_output_buffer(text.ptr, text.len);
@@ -75,13 +76,16 @@ var gpa: std.heap.GeneralPurposeAllocator(.{}) = undefined;
 var alloc: mem.Allocator = undefined;
 var dict: words.WordMap = undefined;
 
-var buf: []u8 = &.{};
+var last_buffer_length: usize = 0;
 
 export fn getBuffer(len: usize) ?[*]u8 {
-    if (buf.len < len) {
-        buf = alloc.realloc(buf, len) catch return null;
-    }
+    var buf = alloc.alloc(u8, len) catch return null;
+    last_buffer_length = len;
     return buf.ptr;
+}
+
+export fn freeBuffer(ptr: [*]u8, len: usize) void {
+    alloc.free(ptr[0..len]);
 }
 
 pub fn dictPinyinToString(
@@ -145,15 +149,26 @@ pub fn Rc(comptime T: type) type {
 var custom_dict = std.StringHashMapUnmanaged(
     std.ArrayListUnmanaged(*Rc(words.WordDefinition)),
 ){};
+var defines = std.StringHashMapUnmanaged([]const u8){};
 
 fn freeCustomDict() void {
-    var iter = custom_dict.iterator();
-    while (iter.next()) |entry| {
-        //alloc.free(entry.key_ptr.*);
-        for (entry.value_ptr.items) |def| def.release();
+    {
+        var iter = custom_dict.iterator();
+        while (iter.next()) |entry| {
+            for (entry.value_ptr.items) |def| def.release();
+        }
+        custom_dict.deinit(alloc);
+        custom_dict = .{};
     }
-    custom_dict.deinit(alloc);
-    custom_dict = .{};
+    {
+        var iter = defines.iterator();
+        while (iter.next()) |entry| {
+            alloc.free(entry.key_ptr.*);
+            alloc.free(entry.value_ptr.*);
+        }
+        defines.deinit(alloc);
+        defines = .{};
+    }
 }
 
 pub const SplitCmdIterator = struct {
@@ -220,147 +235,196 @@ pub fn parseString(text: []const u8) ![]u8 {
     }
 }
 
-pub fn preprocess(inp_text: []const u8) ![]u8 {
+pub const PreprocessState = enum {
+    none,
+    escape,
+    hash,
+    cmd,
+    cmd_quote,
+    cmd_quote_escape,
+    cmd_end,
+
+    pub fn feed(
+        self: *PreprocessState,
+        c: u8,
+        text: *std.ArrayList(u8),
+        current_cmd: *std.ArrayList(u8),
+        comptime depth: comptime_int,
+    ) !void {
+        var state = self.*;
+        defer self.* = state;
+
+        switch (state) {
+            .none => switch (c) {
+                '\\' => state = .escape,
+                '#' => state = .hash,
+                else => try text.append(c),
+            },
+            .escape => {
+                try text.append(c);
+                state = .none;
+            },
+            .hash => switch (c) {
+                '(' => state = .cmd,
+                '\\' => {
+                    try text.append('#');
+                    state = .escape;
+                },
+                '#' => {
+                    try text.append('#');
+                    state = .hash;
+                },
+                else => {
+                    try text.append('#');
+                    try text.append(c);
+                    state = .none;
+                },
+            },
+            .cmd => switch (c) {
+                '"' => {
+                    try current_cmd.append(c);
+                    state = .cmd_quote;
+                },
+                ')' => {
+                    // execute command
+                    var iter = SplitCmdIterator{ .cmd = current_cmd.items };
+                    defer {
+                        current_cmd.clearRetainingCapacity();
+                        state = .cmd_end;
+                    }
+                    const action = std.meta.stringToEnum(
+                        enum { word, define, use, include },
+                        iter.next() orelse return,
+                    ) orelse return;
+                    switch (action) {
+                        .word => {
+                            const simp_str = iter.next() orelse return;
+                            const trad_str = iter.next() orelse return;
+                            const pinyin_str = iter.next() orelse return;
+                            const def_str = iter.next() orelse return;
+                            if (iter.next() != null) return;
+                            const simp = try parseString(simp_str);
+                            errdefer alloc.free(simp);
+                            const trad = try parseString(trad_str);
+                            errdefer alloc.free(trad);
+                            if (simp.len == 0 and trad.len == 0) return;
+                            var pinyin_buf: [words.LongestCodepointLen]pinyin.DictionaryPinyin = undefined;
+                            const parsed_pinyin = try alloc.dupe(
+                                pinyin.DictionaryPinyin,
+                                pinyin.readPinyinCharacters(
+                                    &pinyin_buf,
+                                    try parseString(pinyin_str),
+                                ),
+                            );
+                            errdefer alloc.free(parsed_pinyin);
+                            const def_text = try parseString(def_str);
+                            errdefer alloc.free(def_text);
+                            const def = try Rc(words.WordDefinition).init(.{
+                                .simplified = simp,
+                                .traditional = trad,
+                                .pinyin = parsed_pinyin,
+                                .definition = def_text,
+                            });
+                            defer def.release();
+
+                            if (simp.len > 0) {
+                                var res_s = try custom_dict.getOrPut(alloc, simp);
+                                if (!res_s.found_existing) res_s.value_ptr.* = .{};
+                                try res_s.value_ptr.append(alloc, def.clone());
+                            }
+                            if (trad.len > 0 and !mem.eql(u8, simp, trad)) {
+                                var res_t = try custom_dict.getOrPut(alloc, trad);
+                                if (!res_t.found_existing) res_t.value_ptr.* = .{};
+                                try res_t.value_ptr.append(alloc, def.clone());
+                            }
+                        },
+                        .define => {
+                            const name_str = iter.next() orelse return;
+                            const val_str = iter.next() orelse return;
+                            if (iter.next() != null) return;
+                            const name = try parseString(name_str);
+                            errdefer alloc.free(name);
+                            const val = try parseString(val_str);
+                            errdefer alloc.free(val);
+                            if (try defines.fetchPut(alloc, name, val)) |kv| {
+                                alloc.free(kv.key);
+                                alloc.free(kv.value);
+                            }
+                        },
+                        .use => {
+                            const name_str = iter.next() orelse return;
+                            if (iter.next() != null) return;
+                            const name = try parseString(name_str);
+                            defer alloc.free(name);
+                            if (defines.get(name)) |val| {
+                                try text.appendSlice(val);
+                            }
+                        },
+                        .include => {
+                            const name_str = iter.next() orelse return;
+                            if (iter.next() != null) return;
+                            const name = try parseString(name_str);
+                            defer alloc.free(name);
+
+                            var buf_ptr = request_file(name.ptr, name.len) orelse
+                                return;
+                            var buf = buf_ptr[0..last_buffer_length];
+                            defer alloc.free(buf);
+                            var processed_text = try preprocess(buf, depth - 1);
+                            defer alloc.free(processed_text);
+                            try text.appendSlice(processed_text);
+                        },
+                    }
+                },
+                else => try current_cmd.append(c),
+            },
+            .cmd_quote => switch (c) {
+                '\\' => state = .cmd_quote_escape,
+                '"' => {
+                    try current_cmd.append(c);
+                    state = .cmd;
+                },
+                else => {
+                    try current_cmd.append(c);
+                },
+            },
+            .cmd_quote_escape => {
+                try current_cmd.append(c);
+                state = .cmd_quote;
+            },
+            .cmd_end => switch (c) {
+                '\\' => state = .escape,
+                '#' => state = .hash,
+                '\n' => state = .none, // idk
+                else => {
+                    try text.append(c);
+                    state = .none;
+                },
+            },
+        }
+    }
+};
+
+pub fn preprocess(inp_text: []const u8, comptime depth: comptime_int) ![]u8 {
+    if (depth == 0) return error.MaxRecursionDepth;
     freeCustomDict();
 
     var text = std.ArrayList(u8).init(alloc);
     errdefer text.deinit();
 
-    var cmds = std.ArrayList([]const u8).init(alloc);
-    defer cmds.deinit();
-    errdefer for (cmds.items) |cmd| alloc.free(cmd);
-
     var current_cmd = std.ArrayList(u8).init(alloc);
     defer current_cmd.deinit();
 
-    const State = enum {
-        none,
-        escape,
-        hash,
-        cmd,
-        cmd_quote,
-        cmd_quote_escape,
-        cmd_end,
-    };
-    var state = State.none;
-    for (inp_text) |c| switch (state) {
-        .none => switch (c) {
-            '\\' => state = .escape,
-            '#' => state = .hash,
-            else => try text.append(c),
-        },
-        .escape => {
-            try text.append(c);
-            state = .none;
-        },
-        .hash => switch (c) {
-            '(' => state = .cmd,
-            '\\' => {
-                try text.append('#');
-                state = .escape;
-            },
-            '#' => {
-                try text.append('#');
-                state = .hash;
-            },
-            else => {
-                try text.append('#');
-                try text.append(c);
-                state = .none;
-            },
-        },
-        .cmd => switch (c) {
-            '"' => {
-                try current_cmd.append(c);
-                state = .cmd_quote;
-            },
-            ')' => {
-                try cmds.append(try current_cmd.toOwnedSlice());
-                state = .cmd_end;
-            },
-            else => try current_cmd.append(c),
-        },
-        .cmd_quote => switch (c) {
-            '\\' => state = .cmd_quote_escape,
-            '"' => {
-                try current_cmd.append(c);
-                state = .cmd;
-            },
-            else => {
-                try current_cmd.append(c);
-            },
-        },
-        .cmd_quote_escape => {
-            try current_cmd.append(c);
-            state = .cmd_quote;
-        },
-        .cmd_end => {
-            if (!std.ascii.isWhitespace(c)) {
-                try text.append(c);
-            }
-            state = .none;
-        },
-    };
-    if (current_cmd.items.len > 0) {
-        try cmds.append(try current_cmd.toOwnedSlice());
-    }
-
+    var state = PreprocessState.none;
     errdefer freeCustomDict();
-    for (cmds.items) |cmd| {
-        var iter = SplitCmdIterator{ .cmd = cmd };
-        const action = std.meta.stringToEnum(
-            enum { word },
-            iter.next() orelse continue,
-        ) orelse continue;
-        switch (action) {
-            .word => {
-                const simp_str = iter.next() orelse continue;
-                const trad_str = iter.next() orelse continue;
-                const pinyin_str = iter.next() orelse continue;
-                const def_str = iter.next() orelse continue;
-                if (iter.next() != null) continue;
-                const simp = try parseString(simp_str);
-                errdefer alloc.free(simp);
-                const trad = try parseString(trad_str);
-                errdefer alloc.free(trad);
-                if (simp.len == 0 and trad.len == 0) continue;
-                var pinyin_buf: [words.LongestCodepointLen]pinyin.DictionaryPinyin = undefined;
-                const parsed_pinyin = try alloc.dupe(
-                    pinyin.DictionaryPinyin,
-                    pinyin.readPinyinCharacters(
-                        &pinyin_buf,
-                        try parseString(pinyin_str),
-                    ),
-                );
-                errdefer alloc.free(parsed_pinyin);
-                const def_text = try parseString(def_str);
-                errdefer alloc.free(def_text);
-                const def = try Rc(words.WordDefinition).init(.{
-                    .simplified = simp,
-                    .traditional = trad,
-                    .pinyin = parsed_pinyin,
-                    .definition = def_text,
-                });
-                defer def.release();
+    for (inp_text) |c| try state.feed(c, &text, &current_cmd, depth);
+    try state.feed(' ', &text, &current_cmd, depth);
 
-                if (simp.len > 0) {
-                    var res_s = try custom_dict.getOrPut(alloc, simp);
-                    if (!res_s.found_existing) res_s.value_ptr.* = .{};
-                    try res_s.value_ptr.append(alloc, def.clone());
-                }
-                if (trad.len > 0 and !mem.eql(u8, simp, trad)) {
-                    var res_t = try custom_dict.getOrPut(alloc, trad);
-                    if (!res_t.found_existing) res_t.value_ptr.* = .{};
-                    try res_t.value_ptr.append(alloc, def.clone());
-                }
-            },
-        }
-    }
     return try text.toOwnedSlice();
 }
 
 pub fn receiveInputBufferE(unprocessed_text: []const u8) !void {
-    var text = try preprocess(unprocessed_text);
+    var text = try preprocess(unprocessed_text, 10);
     defer alloc.free(text);
 
     var peeker = try CodepointArrayPeeker(

@@ -46,6 +46,7 @@ pub fn build(b: *std.build.Builder) void {
             "receiveInputBuffer",
             "retrieveDefinitions",
             "getBuffer",
+            "freeBuffer",
         };
 
         b.installArtifact(lib);

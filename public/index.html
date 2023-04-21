@@ -132,11 +132,28 @@ body {
     overflow-y: scroll;
     overflow-x: hidden;
 }
+.save_entry {
+    background-color: lightblue;
+    padding: 0.25em;
+    display: inline-block;
+    border: none;
+    text-align: center;
+    margin: 0.25em;
+}
+.save_entry :hover {
+    background-color: rgba(210, 210, 255, 1);
+}
+.save_entry p {
+    margin: 0px;
+    padding: 0px;
+    font-size: 14pt;
+    
+}
     </style>
 </head>
 
 <body>
-    <script src="chinesereader.js?v=4"></script>
+    <script src="chinesereader.js?v=5"></script>
 
     <div style="position:sticky;">
         <div class="navbar">
@@ -144,6 +161,7 @@ body {
             <button id="nav_input" class="navitem" onclick="selectPanel('input')"><p>Input</p></button>
             <button id="nav_definition" class="navitem" onclick="selectPanel('definition')"><p>Definition</p></button>
             <button id="nav_debug" class="navitem" onclick="selectPanel('debug')"><p>Debug</p></button>
+            <button id="nav_storage" class="navitem" onclick="selectPanel('storage')"><p>Storage</p></button>
             <button id="nav_pinyin" class="navitem" onclick="togglePinyin()"><p>Pinyin</p></button>
             <button id="nav_none" class="navitem" style="width:2em;" onclick="hidePanels()"><p>X</p></button>
         </div>
@@ -151,6 +169,7 @@ body {
             <h2 style="color:white;">Chinese Text Reading Assistant</h2>
             <p style="color:white;"><a href="https://github.com/regenerativep/chineseassistant">Project Github</a></p>
             <p style="color:white;">Type in text in the input tab, and see it appear below. Click pinyin to toggle pinyin visibility.</p>
+            <p style="color:white;">This program uses the browser for saving and is not responsible for any saves lost from the volatility of your browser.</p>
             <p style="color:white;">Beware that not everything here is perfect. This program sometimes fails to pick the correct words that make up some characters and what pinyin belongs to some text.</p>
             <p style="color:white;">
             This project uses the <a href="https://www.mdbg.net/chinese/dictionary?page=cc-cedict">MDBG CC-CEDICT</a> by <a href="https://www.mdbg.net">MDBG</a> which is licensed under <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>.
@@ -159,6 +178,12 @@ body {
         </div>
         <div id="panel_input" class="option_panel">
             <textarea id="input_buffer" oninput="updateInput()"></textarea><br>
+        </div>
+        <div id="panel_storage" class="option_panel">
+            <input style="display:inline-block;" type="text" id="storage_filename">
+            <button class="navitem" id="storage_save" onclick="save()"><p>Save</p></button>
+            <button class="navitem" id="storage_delete" onclick="deleteSave()"><p>Delete</p></button>
+            <div id="save_list"></div>
         </div>
         <div id="panel_debug" class="option_panel">
             <div id="output_buffer"></div>

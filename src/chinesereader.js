@@ -53,28 +53,44 @@ const clear_output_buffer = function() {
     elem.innerHTML = "";
 }
 
-const get_buffer = function(len) {
+const getBuffer = function(len) {
     const ptr = chre.exports.getBuffer(len);
     if(ptr == 0) throw new Error("Buffer OOM");
     return new Uint8Array(chre.exports.memory.buffer, ptr, len);
+};
+
+const freeBuffer = function(buf) {
+    chre.exports.freeBuffer(buf.byteOffset, buf.byteLength);
+};
+
+const request_file = function(ptr, len) {
+    let name = getString(ptr, len);
+    let data = loadFile(name);
+    if(data === null) return 0;
+    let bytes = toUTF8Array(data);
+    let buf = getBuffer(bytes.length);
+    for(let i = 0; i < bytes.length; i += 1) {
+        buf[i] = bytes[i];
+    }
+    return buf.byteOffset;
 };
 
 var input_buffer_id = "input_buffer";
 const read_input_buffer = function() {
     var elem = document.getElementById(input_buffer_id);
     const bytes = toUTF8Array(elem.value); // utf8!
-    const arr = get_buffer(bytes.length);
+    const arr = getBuffer(bytes.length);
     for(let i = 0; i < bytes.length; i += 1) {
         arr[i] = bytes[i];
     }
     chre.exports.receiveInputBuffer(arr.byteOffset, arr.length);
+    freeBuffer(arr);
     return elem.value;
 };
 
 var word_buffer = "word_buffer";
 const add_word = function(s_ptr, s_len, pinyin_ptr, pinyin_len) {
     let simplified = getString(s_ptr, s_len);
-    //console.log("got simplified: " + simplified);
     let pinyin = getString(pinyin_ptr, pinyin_len);
     addWordToBuffer(simplified, pinyin);
 };
@@ -150,20 +166,19 @@ const add_def = function(s_ptr, s_len, t_ptr, t_len, p_ptr, p_len, d_ptr, d_len)
     let box = document.getElementById(def_box);
     box.appendChild(defelem);
 }
+
+var panel_list = ["license", "input", "definition", "debug", "storage"];
+
 function showDefinition(word) {
     const bytes = toUTF8Array(word);
-    const arr = get_buffer(bytes.length);
+    const arr = getBuffer(bytes.length);
     for(let i = 0; i < bytes.length; i += 1) {
         arr[i] = bytes[i];
     }
     clear_def_box();
     chre.exports.retrieveDefinitions(arr.byteOffset, arr.length);
+    freeBuffer(arr);
     selectPanel("definition");
-}
-
-var enabled_panels = {};
-function panelEnabled(name) {
-    return typeof enabled_panels[name] !== "undefined" && !!enabled_panels[name];
 }
 
 var pinyin_enabled = false;
@@ -185,7 +200,7 @@ function setPinyinEnabled(on) {
 }
 
 function hidePanels() {
-    ["license", "input", "definition", "debug"].forEach((name) => {
+    panel_list.forEach((name) => {
         let navelem = document.getElementById("nav_" + name);
         let panelelem = document.getElementById("panel_" + name);
         navelem.setAttribute("style", "background-color:gray;");
@@ -199,29 +214,6 @@ function selectPanel(name) {
     navelem.setAttribute("style", "background-color:lightblue;");
     panelelem.setAttribute("style", "display:block;");
 }
-//function togglePanel(name) {
-//    let navelem = document.getElementById("nav_" + name);
-//    let panelelem = document.getElementById("panel_" + name);
-//    if(panelEnabled(name)) {
-//        navelem.setAttribute("style", "background-color:red;");
-//        if(name === "pinyin") {
-//            setPinyinEnabled(false);
-//        } else {
-//            panelelem.setAttribute("style", "display:none;");
-//        }
-//        enabled_panels[name] = false;
-//    }
-//    else {
-//        navelem.setAttribute("style", "");
-//        if(name === "pinyin") {
-//            setPinyinEnabled(true);
-//        } else {
-//            panelelem.setAttribute("style", "display:block;");
-//        }
-//        enabled_panels[name] = true;
-//    }
-//}
-
 
 var chre = {
     objects: [],
@@ -231,7 +223,8 @@ var chre = {
             clear_output_buffer: clear_output_buffer,
             add_word: add_word,
             add_not_word: add_not_word,
-            add_def: add_def
+            add_def: add_def,
+            request_file: request_file
         }
     },
     launch: launch,
@@ -253,6 +246,8 @@ var recent_updates = 0;
 var update_delay = 1000;
 
 function updateInput() {
+    let save_button = document.getElementById("storage_save");
+    save_button.innerHTML = "<p>Save!!!</p>";
     recent_updates += 1;
     setTimeout(() => {
         recent_updates -= 1;
@@ -263,9 +258,90 @@ function updateInput() {
     }, update_delay);
 }
 
+function updateSaves() {
+    // TODO: use indexed db instead of localstorage in future
+    let saves_str = localStorage.getItem("save_list");
+    if(saves_str === null) saves_str = "";
+    let parts = saves_str.split(" ");
+    let storage_elem = document.getElementById("save_list");
+    storage_elem.innerHTML = "";
+    for(let i = 0; i < parts.length; i += 1) {
+        let part = parts[i];
+        let elem = document.createElement("div");
+        elem.setAttribute("class", "save_entry");
+        elem.innerHTML = "<p>" + part + "</p>";
+        elem.addEventListener("click", () => {
+            let inp_elem = document.getElementById("input_buffer");
+            inp_elem.value = loadFile(part);
+            let save_filename = document.getElementById("storage_filename");
+            save_filename.value = part;
+            updateInput();
+            let save_button = document.getElementById("storage_save");
+            save_button.innerHTML = "<p>Save</p>";
+            selectPanel("input");
+        });
+        storage_elem.appendChild(elem);
+    }
+}
+
+function loadFile(name) {
+    return localStorage.getItem("file_" + name);
+}
+function deleteSave() {
+    let filename = document.getElementById("storage_filename").value;
+    localStorage.setItem("file_" + filename, null);
+    let new_saves_str = "";
+    let saves_str = localStorage.getItem("save_list");
+    if(saves_str === null) saves_str = "";
+    let parts = saves_str.split(" ");
+    let first = true;
+    for(let i = 0; i < parts.length; i += 1) {
+        if(parts[i] !== filename) {
+            if(first) {
+                new_saves_str = parts[i];
+                first = false;
+            } else {
+                new_saves_str += " " + parts[i];
+            }
+        }
+    }
+    localStorage.setItem("save_list", new_saves_str);
+    updateSaves();
+}
+function save() {
+    let filename = document.getElementById("storage_filename").value;
+    let data = document.getElementById("input_buffer").value;
+    localStorage.setItem("file_" + filename, data);
+
+    let saves_str = localStorage.getItem("save_list");
+    if(saves_str === null) saves_str = "";
+    let parts = saves_str.split(" ");
+    let found = false;
+    for(let i = 0; i < parts.length; i += 1) {
+        if(parts[i] === filename) {
+            found = true;
+            break;
+        }
+    }
+    if(!found) {
+        if(saves_str.length === 0) {
+            saves_str = filename;
+        } else {
+            saves_str += " " + filename;
+        }
+        localStorage.setItem("save_list", saves_str);
+    }
+    
+    let save_button = document.getElementById("storage_save");
+    save_button.innerHTML = "<p>Save</p>";
+
+    updateSaves();
+}
+
 window.addEventListener("load", () => {
     loadReaderWasm();
     selectPanel("license");
     setPinyinEnabled(false);
     updateInput();
+    updateSaves();
 });
