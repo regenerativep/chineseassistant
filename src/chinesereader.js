@@ -212,7 +212,8 @@ function selectPanel(name) {
     let navelem = document.getElementById("nav_" + name);
     let panelelem = document.getElementById("panel_" + name);
     navelem.setAttribute("style", "background-color:lightblue;");
-    panelelem.setAttribute("style", "display:block;");
+    //panelelem.setAttribute("style", "display:block;");
+    panelelem.setAttribute("style", "");
 }
 
 var chre = {

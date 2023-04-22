@@ -407,7 +407,6 @@ pub const PreprocessState = enum {
 
 pub fn preprocess(inp_text: []const u8, comptime depth: comptime_int) ![]u8 {
     if (depth == 0) return error.MaxRecursionDepth;
-    freeCustomDict();
 
     var text = std.ArrayList(u8).init(alloc);
     errdefer text.deinit();
@@ -416,7 +415,6 @@ pub fn preprocess(inp_text: []const u8, comptime depth: comptime_int) ![]u8 {
     defer current_cmd.deinit();
 
     var state = PreprocessState.none;
-    errdefer freeCustomDict();
     for (inp_text) |c| try state.feed(c, &text, &current_cmd, depth);
     try state.feed(' ', &text, &current_cmd, depth);
 
@@ -424,6 +422,8 @@ pub fn preprocess(inp_text: []const u8, comptime depth: comptime_int) ![]u8 {
 }
 
 pub fn receiveInputBufferE(unprocessed_text: []const u8) !void {
+    freeCustomDict();
+    errdefer freeCustomDict();
     var text = try preprocess(unprocessed_text, 10);
     defer alloc.free(text);
 

@@ -13,21 +13,30 @@ body {
     background-color: black;
     padding: 0px;
     margin: 0px;
+
+    display: flex;
+    flex-flow: column;
+    height: 100%;
+}
+#panel_input {
+    display: flex;
 }
 #input_buffer {
-    height: 30vh;
-    width: 99vw;
+    height: 15em;
+    flex: 1 1 auto;
     resize: vertical;
     margin: 0px;
-    padding: 0px;
+}
+#header {
+    position: sticky;
+    bottom: 0;
+    flex: 0 1 auto;
 }
 #word_buffer {
-    height: 50vh;
+    flex: 1 1 auto;
     width: 90%;
     margin-left: 3%;
     padding: 8px;
-    overflow-y: scroll;
-    overflow-x: hidden;
     border: 2px solid black;
     background-color: lightgray;
     resize: vertical;
@@ -108,8 +117,6 @@ body {
     display: inline-block;
     background-color: gray;
     border: none;
-    /*width: 5em;*/
-    /*height: 1.25em;*/
     text-align: center;
     padding: 0.25em;
 }
@@ -126,11 +133,6 @@ body {
     width: 100%;
     background-color: rgb(102,102,102);
     resize: vertical;
-}
-.contentarea {
-    height: 100%;
-    overflow-y: scroll;
-    overflow-x: hidden;
 }
 .save_entry {
     background-color: lightblue;
@@ -154,17 +156,9 @@ body {
 
 <body>
     <script src="chinesereader.js?v=5"></script>
-
-    <div style="position:sticky;">
-        <div class="navbar">
-            <button id="nav_license" class="navitem" onclick="selectPanel('license')"><p>Intro</p></button>
-            <button id="nav_input" class="navitem" onclick="selectPanel('input')"><p>Input</p></button>
-            <button id="nav_definition" class="navitem" onclick="selectPanel('definition')"><p>Definition</p></button>
-            <button id="nav_debug" class="navitem" onclick="selectPanel('debug')"><p>Debug</p></button>
-            <button id="nav_storage" class="navitem" onclick="selectPanel('storage')"><p>Storage</p></button>
-            <button id="nav_pinyin" class="navitem" onclick="togglePinyin()"><p>Pinyin</p></button>
-            <button id="nav_none" class="navitem" style="width:2em;" onclick="hidePanels()"><p>X</p></button>
-        </div>
+    <style id="word_buffer_style"></style>
+    <div id="word_buffer"></div>
+    <div id="header">
         <div id="panel_license" class="option_panel">
             <h2 style="color:white;">Chinese Text Reading Assistant</h2>
             <p style="color:white;"><a href="https://github.com/regenerativep/chineseassistant">Project Github</a></p>
@@ -191,9 +185,16 @@ body {
         <div id="panel_definition" class="option_panel">
             <div id="def_box"></div>
         </div>
+        <div class="navbar">
+            <button id="nav_license" class="navitem" onclick="selectPanel('license')"><p>Intro</p></button>
+            <button id="nav_input" class="navitem" onclick="selectPanel('input')"><p>Input</p></button>
+            <button id="nav_definition" class="navitem" onclick="selectPanel('definition')"><p>Definition</p></button>
+            <button id="nav_debug" class="navitem" onclick="selectPanel('debug')"><p>Debug</p></button>
+            <button id="nav_storage" class="navitem" onclick="selectPanel('storage')"><p>Storage</p></button>
+            <button id="nav_pinyin" class="navitem" onclick="togglePinyin()"><p>Pinyin</p></button>
+            <button id="nav_none" class="navitem" style="width:2em;" onclick="hidePanels()"><p>X</p></button>
+        </div>
     </div>
-    <style id="word_buffer_style"></style>
-    <div class="contentarea" id="word_buffer"></div>
 </body>
 
 </html>
