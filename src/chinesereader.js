@@ -128,7 +128,7 @@ function addWordToBuffer(simplified, pinyin) {
     wordDiv.appendChild(simplifiedP);
     wordDiv.appendChild(pinyinP);
     wordDiv.addEventListener("click", function() {
-        showDefinition(simplified);
+        showDefinition(simplified, this);
     });
     let elem = document.getElementById(word_buffer);
     elem.appendChild(wordDiv);
@@ -168,8 +168,30 @@ const add_def = function(s_ptr, s_len, t_ptr, t_len, p_ptr, p_len, d_ptr, d_len)
 }
 
 var panel_list = ["license", "input", "definition", "debug", "storage"];
+var current_panel = "";
+var last_panel = "";
 
-function showDefinition(word) {
+function unselectWord() {
+    var selected_word = document.getElementById("word_selected");
+    if(selected_word === null) return;
+    selected_word.removeAttribute("id");
+}
+function showDefinition(word, word_elem) {
+    if(typeof word_elem !== "undefined") {
+        var selected_word = document.getElementById("word_selected");
+        if(word_elem == selected_word) {
+            unselectWord();
+            selectPanel(last_panel);
+            return;
+        } else {
+            unselectWord();
+            word_elem.setAttribute("id", "word_selected");
+        }
+    } else {
+        unselectWord();
+    }
+
+
     const bytes = toUTF8Array(word);
     const arr = getBuffer(bytes.length);
     for(let i = 0; i < bytes.length; i += 1) {
@@ -208,12 +230,17 @@ function hidePanels() {
     });
 }
 function selectPanel(name) {
+    if(current_panel !== name) {
+        last_panel = current_panel;
+        current_panel = name;
+    }
     hidePanels();
     let navelem = document.getElementById("nav_" + name);
     let panelelem = document.getElementById("panel_" + name);
     navelem.setAttribute("style", "background-color:lightblue;");
-    //panelelem.setAttribute("style", "display:block;");
     panelelem.setAttribute("style", "");
+
+    if(name !== "definition") unselectWord();
 }
 
 var chre = {
