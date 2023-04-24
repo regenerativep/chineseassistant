@@ -138,6 +138,108 @@ pub const PinyinFinal = enum {
     Uang,
     Ueng, // uhh do we need this one
 
+    fn endsWith(comptime val: PinyinFinal, t: PinyinFinal) bool {
+        return switch (val) {
+            .I => switch (t) {
+                .I, .Ai, .Ei, .Ui, .Uai => true,
+                else => false,
+            },
+            .A => switch (t) {
+                .A, .Ia, .Ua => true,
+                else => false,
+            },
+            .E => switch (t) {
+                .E, .Ue, .Ve => true,
+                else => false,
+            },
+            .O => switch (t) {
+                .O, .Uo, .Iao, .Ao => true,
+                else => false,
+            },
+            .U => switch (t) {
+                .U, .Iu => true,
+                else => false,
+            },
+            .Ai => switch (t) {
+                .Ai, .Uai => true,
+                else => false,
+            },
+            .Ao => switch (t) {
+                .Ao, .Iao => true,
+                else => false,
+            },
+            .An => switch (t) {
+                .An, .Uan, .Van, .Ian => true,
+                else => false,
+            },
+            .Ang => switch (t) {
+                .Ang, .Uang, .Iang => true,
+                else => false,
+            },
+            .Ong => switch (t) {
+                .Ong, .Iong => true,
+                else => false,
+            },
+            else => val == t,
+        };
+    }
+    fn startsWith(comptime val: PinyinFinal, t: PinyinFinal) bool {
+        return switch (val) {
+            .A => switch (t) {
+                .A, .Ai, .Ao, .An, .Ang => true,
+                else => false,
+            },
+            .O => switch (t) {
+                .O, .Ou, .Ong => true,
+                else => false,
+            },
+            .E => switch (t) {
+                .E, .Ei, .En, .Er => true,
+                else => false,
+            },
+            .I => switch (t) {
+                .I, .Ia, .Ie, .Iu, .In, .Iao, .Ian, .Ing, .Iang, .Iong => true,
+                else => false,
+            },
+            .U => switch (t) {
+                .U, .Ua, .Uo, .Ui, .Un, .Ue, .Uai, .Uan, .Uang => true,
+                else => false,
+            },
+            .V => switch (t) {
+                .V, .Ve, .Vn, .Van => true,
+                else => false,
+            },
+            .An => switch (t) {
+                .An, .Ang => true,
+                else => false,
+            },
+            .En => switch (t) {
+                .En, .Eng => true,
+                else => false,
+            },
+            .Ia => switch (t) {
+                .Ia, .Iao, .Ian, .Iang => true,
+                else => false,
+            },
+            .In => switch (t) {
+                .In, .Ing => true,
+                else => false,
+            },
+            .Ua => switch (t) {
+                .Ua, .Uai, .Uan, .Uang => true,
+                else => false,
+            },
+            .Ian => switch (t) {
+                .Ian, .Iang => true,
+                else => false,
+            },
+            .Uan => switch (t) {
+                .Uan, .Uang => true,
+                else => false,
+            },
+            else => val == t,
+        };
+    }
     pub fn isAmbiguous(f: PinyinFinal, c: PinyinCharacter) bool {
         if (c.initial) |initial| {
             inline for (.{
@@ -152,6 +254,10 @@ pub const PinyinFinal = enum {
                 .{ .Ia, .N },
                 .{ .In, .G },
                 .{ .Ua, .N },
+                .{ .Ue, .N },
+                .{ .Ve, .N },
+                .{ .Ue, .R },
+                .{ .Ve, .R },
                 .{ .Ian, .G },
                 .{ .Uan, .G },
             }) |pair| {
@@ -171,10 +277,18 @@ pub const PinyinFinal = enum {
                 .{ .U, .I },
                 .{ .U, .E },
                 .{ .V, .E },
+                .{ .I, .Ao },
+                .{ .I, .An },
+                .{ .U, .Ai },
+                .{ .U, .An },
+                .{ .V, .An },
+                .{ .I, .Ang },
+                .{ .I, .Ong },
+                .{ .U, .Ang },
                 .{ .Ia, .O },
                 .{ .Ua, .I },
             }) |pair| {
-                if (c.final == pair[1] and f == pair[0]) return true;
+                if (endsWith(pair[0], f) and startsWith(pair[1], c.final)) return true;
             }
         }
         return false;
