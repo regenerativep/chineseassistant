@@ -289,9 +289,9 @@ function updateInput() {
 
 function updateSaves() {
     // TODO: use indexed db instead of localstorage in future
-    let saves_str = localStorage.getItem("save_list");
-    if(saves_str === null) saves_str = "";
-    let parts = saves_str.split(" ");
+    let saves = JSON.parse(localStorage.getItem("save_list"));
+    if(saves === null) saves = [];
+    let parts = saves;
     let storage_elem = document.getElementById("save_list");
     storage_elem.innerHTML = "";
     for(let i = 0; i < parts.length; i += 1) {
@@ -319,47 +319,46 @@ function loadFile(name) {
 function deleteSave() {
     let filename = document.getElementById("storage_filename").value;
     localStorage.setItem("file_" + filename, null);
-    let new_saves_str = "";
-    let saves_str = localStorage.getItem("save_list");
-    if(saves_str === null) saves_str = "";
-    let parts = saves_str.split(" ");
-    let first = true;
-    for(let i = 0; i < parts.length; i += 1) {
-        if(parts[i] !== filename) {
-            if(first) {
-                new_saves_str = parts[i];
-                first = false;
-            } else {
-                new_saves_str += " " + parts[i];
-            }
-        }
+    let saves = JSON.parse(localStorage.getItem("save_list"));
+    if(saves === null) saves = [];
+    let idx = saves.indexOf(filename);
+    if(idx != -1) { 
+      saves.splice(idx, 1);
     }
-    localStorage.setItem("save_list", new_saves_str);
+    
+    localStorage.setItem("save_list", JSON.stringify(saves)); 
     updateSaves();
 }
 function save() {
     let filename = document.getElementById("storage_filename").value;
     let data = document.getElementById("input_buffer").value;
     localStorage.setItem("file_" + filename, data);
+    
+    let saves = JSON.parse(localStorage.getItem("save_list"));
+    if (saves === null) saves = [];
+    saves.push(filename);
+    saves = new Set(saves); 
+    saves = Array.from(saves);
+    localStorage.setItem("save_list", JSON.stringify(saves));
 
-    let saves_str = localStorage.getItem("save_list");
-    if(saves_str === null) saves_str = "";
-    let parts = saves_str.split(" ");
-    let found = false;
-    for(let i = 0; i < parts.length; i += 1) {
-        if(parts[i] === filename) {
-            found = true;
-            break;
-        }
-    }
-    if(!found) {
-        if(saves_str.length === 0) {
-            saves_str = filename;
-        } else {
-            saves_str += " " + filename;
-        }
-        localStorage.setItem("save_list", saves_str);
-    }
+    //let saves_str = localStorage.getItem("save_list");
+    //if(saves_str === null) saves_str = "";
+    //let parts = saves_str.split(" ");
+    //let found = false;
+    //for(let i = 0; i < parts.length; i += 1) {
+    //    if(parts[i] === filename) {
+    //        found = true;
+    //        break;
+    //    }
+    //}
+    //if(!found) {
+    //    if(saves_str.length === 0) {
+    //        saves_str = filename;
+    //    } else {
+    //        saves_str += " " + filename;
+    //    }
+    //    localStorage.setItem("save_list", saves_str);
+    //}
     
     let save_button = document.getElementById("storage_save");
     save_button.innerHTML = "<p>Save</p>";
