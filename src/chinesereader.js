@@ -341,24 +341,6 @@ function save() {
     saves = Array.from(saves);
     localStorage.setItem("save_list", JSON.stringify(saves));
 
-    //let saves_str = localStorage.getItem("save_list");
-    //if(saves_str === null) saves_str = "";
-    //let parts = saves_str.split(" ");
-    //let found = false;
-    //for(let i = 0; i < parts.length; i += 1) {
-    //    if(parts[i] === filename) {
-    //        found = true;
-    //        break;
-    //    }
-    //}
-    //if(!found) {
-    //    if(saves_str.length === 0) {
-    //        saves_str = filename;
-    //    } else {
-    //        saves_str += " " + filename;
-    //    }
-    //    localStorage.setItem("save_list", saves_str);
-    //}
     
     let save_button = document.getElementById("storage_save");
     save_button.innerHTML = "<p>Save</p>";
