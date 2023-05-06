@@ -35,6 +35,23 @@ function toUTF8Array(str) {
     return utf8;
 }
 
+function sanitize(str) {
+    let new_str = "";
+    for(let i = 0; i < str.length; i += 1) {
+        let c = str[i];
+        if(c === "<") {
+            new_str += "&lt;";
+        } else if(c === ">") {
+            new_str += "&gt;";
+        } else if(c === "&") {
+            new_str += "&amp;";
+        } else {
+            new_str += c;
+        }
+    }
+    return new_str;
+}
+
 const launch = function(result) {
     chre.exports = result.instance.exports;
     if (!chre.exports.launch_export()) {
@@ -45,7 +62,7 @@ const launch = function(result) {
 var output_buffer_id = "output_buffer";
 const write_output_buffer = function(ptr, len) {
     var elem = document.getElementById(output_buffer_id);
-    elem.innerHTML += getString(ptr, len);
+    elem.innerHTML += sanitize(getString(ptr, len));
 };
 
 const clear_output_buffer = function() {
@@ -105,7 +122,7 @@ const add_not_word = function(s_ptr, s_len) {
     else {
         let textDiv = document.createElement("div");
         textDiv.setAttribute("class", "word");
-        textDiv.innerHTML = text;
+        textDiv.innerHTML = sanitize(text);
         let elem = document.getElementById(word_buffer);
         elem.appendChild(textDiv);
     }
@@ -119,10 +136,10 @@ function clear_word_buffer() {
 function addWordToBuffer(simplified, pinyin) {
     let simplifiedP = document.createElement("p");
     simplifiedP.setAttribute("class", "word_characters");
-    simplifiedP.innerHTML = simplified;
+    simplifiedP.innerHTML = sanitize(simplified);
     let pinyinP = document.createElement("p");
     pinyinP.setAttribute("class", "word_pinyin");
-    pinyinP.innerHTML = pinyin;
+    pinyinP.innerHTML = sanitize(pinyin);
     let wordDiv = document.createElement("div");
     wordDiv.setAttribute("class", "word wordhover");
     wordDiv.appendChild(simplifiedP);
@@ -298,7 +315,7 @@ function updateSaves() {
         let part = parts[i];
         let elem = document.createElement("div");
         elem.setAttribute("class", "save_entry");
-        elem.innerHTML = "<p>" + part + "</p>";
+        elem.innerHTML = "<p>" + sanitize(part) + "</p>";
         elem.addEventListener("click", () => {
             let inp_elem = document.getElementById("input_buffer");
             inp_elem.value = loadFile(part);
