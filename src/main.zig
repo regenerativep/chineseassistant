@@ -78,7 +78,10 @@ var dict: words.WordMap = undefined;
 
 var last_buffer_length: usize = 0;
 
+var zero_buf = [_]u8{0};
+
 export fn getBuffer(len: usize) ?[*]u8 {
+    if (len == 0) return (zero_buf[0..1]).ptr;
     var buf = alloc.alloc(u8, len) catch return null;
     last_buffer_length = len;
     return buf.ptr;

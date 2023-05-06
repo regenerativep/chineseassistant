@@ -267,6 +267,7 @@ function loadReaderWasm() {
         .then(bytes => WebAssembly.instantiate(bytes, chre.imports))
         .then(obj => {
             chre.launch(obj);
+            updateInput();
         });
 }
 
@@ -370,6 +371,5 @@ window.addEventListener("load", () => {
     loadReaderWasm();
     selectPanel("license");
     setPinyinEnabled(false);
-    updateInput();
     updateSaves();
 });
