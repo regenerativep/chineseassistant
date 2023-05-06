@@ -126,7 +126,7 @@ pub fn main() !void {
         try writer.writeIntLittle(u16, @intCast(u16, def.definition.len));
         try writer.writeAll(def.definition);
         var pinyin_buf: [50]pinyin.DictionaryPinyin = undefined;
-        const chars = try pinyin.readPinyinCharacters(&pinyin_buf, def.pinyin);
+        const chars = pinyin.readPinyinCharacters(&pinyin_buf, def.pinyin);
         try writer.writeIntLittle(u16, @intCast(u16, chars.len));
         for (chars) |c| {
             const unpacked_c = if (c == .pinyin) pinyin.CharacterOrLength{
