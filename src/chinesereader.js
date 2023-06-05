@@ -145,7 +145,8 @@ function addWordToBuffer(simplified, pinyin) {
     wordDiv.appendChild(simplifiedP);
     wordDiv.appendChild(pinyinP);
     wordDiv.addEventListener("click", function() {
-        showDefinition(simplified, this);
+        //showDefinition(simplified, this);
+        showDefinition(this);
     });
     let elem = document.getElementById(word_buffer);
     elem.appendChild(wordDiv);
@@ -189,13 +190,36 @@ var current_panel = "";
 var last_panel = "";
 
 function unselectWord() {
-    var selected_word = document.getElementById("word_selected");
+    let selected_word = document.getElementById("word_selected");
     if(selected_word === null) return;
     selected_word.removeAttribute("id");
 }
-function showDefinition(word, word_elem) {
-    if(typeof word_elem !== "undefined") {
-        var selected_word = document.getElementById("word_selected");
+//function showDefinition(word, word_elem) {
+function showDefinition(word_elem) {
+    let word = "";
+    let adj_words = "";
+    if(typeof word_elem === "string") {
+        word = word_elem;
+        adj_words = word;
+    } else if(typeof word_elem !== "undefined") {
+        word = word_elem.getElementsByClassName("word_characters")[0].innerHTML;
+        adj_words = word;
+
+        const longest_codepoint_length = chre.exports.longestCodepointLength();
+        let current_elem = word_elem.nextElementSibling;
+        while(adj_words.length < longest_codepoint_length && current_elem !== null) {
+            let found_elems = current_elem.getElementsByClassName("word_characters");
+            if(found_elems.length > 0) {
+                const next_word = found_elems[0].innerHTML;
+                adj_words += next_word;
+            }
+            current_elem = current_elem.nextElementSibling;
+        }
+        if(adj_words.length > longest_codepoint_length) {
+            adj_words = adj_words.substring(0, longest_codepoint_length);
+        }
+
+        let selected_word = document.getElementById("word_selected");
         if(word_elem == selected_word) {
             unselectWord();
             selectPanel(last_panel);
@@ -209,13 +233,13 @@ function showDefinition(word, word_elem) {
     }
 
 
-    const bytes = toUTF8Array(word);
+    const bytes = toUTF8Array(adj_words);
     const arr = getBuffer(bytes.length);
     for(let i = 0; i < bytes.length; i += 1) {
         arr[i] = bytes[i];
     }
     clear_def_box();
-    chre.exports.retrieveDefinitions(arr.byteOffset, arr.length);
+    chre.exports.retrieveDefinitions(arr.byteOffset, arr.length, word.length);
     freeBuffer(arr);
     selectPanel("definition");
 }

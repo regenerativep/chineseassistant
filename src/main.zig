@@ -39,14 +39,21 @@ pub fn addNotWord(text: []const u8) void {
     add_not_word(text.ptr, text.len);
 }
 
-pub fn writeOutputBufferVoid(self: void, text: []const u8) OutputBufferWriterError!usize {
+pub fn writeOutputBufferVoid(
+    self: void,
+    text: []const u8,
+) OutputBufferWriterError!usize {
     _ = self;
     write_output_buffer(text.ptr, text.len);
     return text.len;
 }
 
 const OutputBufferWriterError = error{};
-const OutputBufferWriter = std.io.Writer(void, OutputBufferWriterError, writeOutputBufferVoid);
+const OutputBufferWriter = std.io.Writer(
+    void,
+    OutputBufferWriterError,
+    writeOutputBufferVoid,
+);
 
 pub const std_options = struct {
     pub const log_level: std.log.Level = .info;
@@ -311,7 +318,8 @@ pub const PreprocessState = enum {
                             const trad = try parseString(trad_str);
                             errdefer alloc.free(trad);
                             if (simp.len == 0 and trad.len == 0) return;
-                            var pinyin_buf: [words.LongestCodepointLen]pinyin.DictionaryPinyin = undefined;
+                            var pinyin_buf: [words.LongestCodepointLen]pinyin.DictionaryPinyin =
+                                undefined;
                             const parsed_pinyin = try alloc.dupe(
                                 pinyin.DictionaryPinyin,
                                 pinyin.readPinyinCharacters(
@@ -424,6 +432,20 @@ pub fn preprocess(inp_text: []const u8, comptime depth: comptime_int) ![]u8 {
     return try text.toOwnedSlice();
 }
 
+export fn longestCodepointLength() usize {
+    // TODO: probably unnecessary, but remembering this value could be nice
+    var longest: usize = words.LongestCodepointLen;
+    var iter = custom_dict.iterator();
+    while (iter.next()) |entry| for (entry.value_ptr.items) |def| {
+        inline for (.{ "simplified", "traditional" }) |fname| {
+            const len = unicode.utf8CountCodepoints(@field(def.value, fname)) catch
+                unreachable;
+            if (len > longest) longest = len;
+        }
+    };
+    return longest;
+}
+
 pub fn receiveInputBufferE(unprocessed_text: []const u8) !void {
     freeCustomDict();
     errdefer freeCustomDict();
@@ -463,9 +485,11 @@ pub fn receiveInputBufferE(unprocessed_text: []const u8) !void {
             if (dict.get(slice)) |def_iter_c| {
                 var def_iter = def_iter_c;
                 // find next non-proper definition, otherwise just use proper def
-                var pinyin_buf: [words.LongestByteLen]pinyin.DictionaryPinyin = undefined;
+                var pinyin_buf: [words.LongestByteLen]pinyin.DictionaryPinyin =
+                    undefined;
                 while (try def_iter.next(&pinyin_buf)) |def| {
-                    // if current is proper and there is another one, then go to the next one
+                    // if current is proper and there is another one, then go
+                    // to the next one
                     if (def_iter.inner != null and
                         def.pinyin[0] == .pinyin and
                         def.pinyin[0].pinyin.proper)
@@ -516,7 +540,7 @@ export fn receiveInputBuffer(ptr: [*]const u8, len: usize) bool {
     return true;
 }
 
-pub fn retrieveDefinitionsE(text: []const u8) !void {
+pub fn retrieveDefinitionsE(text: []const u8, max_begin: usize) !void {
     var retrieved = std.ArrayList(usize).init(alloc);
     defer retrieved.deinit();
     const cp_len = try std.unicode.utf8CountCodepoints(text);
@@ -524,7 +548,7 @@ pub fn retrieveDefinitionsE(text: []const u8) !void {
     while (i > 0) : (i -= 1) {
         var j: usize = 0;
         var iter = std.unicode.Utf8Iterator{ .bytes = text, .i = 0 };
-        while (j <= cp_len - i) : (j += 1) {
+        while (j <= cp_len - i and j < max_begin) : (j += 1) {
             const sub_text = iter.peek(i);
             if (custom_dict.get(sub_text)) |arr| {
                 var k = arr.items.len;
@@ -558,7 +582,8 @@ pub fn retrieveDefinitionsE(text: []const u8) !void {
                 try retrieved.append(current_ptr);
 
                 var def_iter = def_iter_c;
-                var pinyin_buf: [words.LongestByteLen]pinyin.DictionaryPinyin = undefined;
+                var pinyin_buf: [words.LongestByteLen]pinyin.DictionaryPinyin =
+                    undefined;
                 while (try def_iter.next(&pinyin_buf)) |def| {
                     const pinyin_text = try dictPinyinToString(alloc, def.pinyin);
                     defer alloc.free(pinyin_text);
@@ -578,8 +603,12 @@ pub fn retrieveDefinitionsE(text: []const u8) !void {
         }
     }
 }
-export fn retrieveDefinitions(ptr: [*]const u8, len: usize) bool {
-    retrieveDefinitionsE(ptr[0..len]) catch |e| {
+export fn retrieveDefinitions(
+    ptr: [*]const u8,
+    len: usize,
+    max_begin: usize,
+) bool {
+    retrieveDefinitionsE(ptr[0..len], max_begin) catch |e| {
         std.log.err("error during definition retrieval: {any}", .{e});
         return false;
     };

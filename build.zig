@@ -47,6 +47,7 @@ pub fn build(b: *std.build.Builder) void {
             "retrieveDefinitions",
             "getBuffer",
             "freeBuffer",
+            "longestCodepointLength",
         };
 
         b.installArtifact(lib);
