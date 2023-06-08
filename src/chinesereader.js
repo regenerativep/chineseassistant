@@ -390,6 +390,11 @@ function save() {
 }
 
 window.addEventListener("load", () => {
+    var elem = document.getElementById(input_buffer_id);
+    if(window.location.hash.length > 0) {
+        console.log("hello");
+        elem.value = decodeURI(window.location.hash.substring(1));
+    }
     loadReaderWasm();
     selectPanel("license");
     setPinyinEnabled(false);
