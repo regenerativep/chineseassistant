@@ -212,6 +212,8 @@ function showDefinition(word_elem) {
             if(found_elems.length > 0) {
                 const next_word = found_elems[0].innerHTML;
                 adj_words += next_word;
+            } else {
+              adj_words += current_elem.innerHTML;
             }
             current_elem = current_elem.nextElementSibling;
         }
