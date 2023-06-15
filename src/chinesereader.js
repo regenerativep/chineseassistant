@@ -35,6 +35,23 @@ function toUTF8Array(str) {
     return utf8;
 }
 
+function sanitize(str) {
+    let new_str = "";
+    for(let i = 0; i < str.length; i += 1) {
+        let c = str[i];
+        if(c === "<") {
+            new_str += "&lt;";
+        } else if(c === ">") {
+            new_str += "&gt;";
+        } else if(c === "&") {
+            new_str += "&amp;";
+        } else {
+            new_str += c;
+        }
+    }
+    return new_str;
+}
+
 const launch = function(result) {
     chre.exports = result.instance.exports;
     if (!chre.exports.launch_export()) {
@@ -45,7 +62,7 @@ const launch = function(result) {
 var output_buffer_id = "output_buffer";
 const write_output_buffer = function(ptr, len) {
     var elem = document.getElementById(output_buffer_id);
-    elem.innerHTML += getString(ptr, len);
+    elem.innerHTML += sanitize(getString(ptr, len));
 };
 
 const clear_output_buffer = function() {
@@ -105,7 +122,7 @@ const add_not_word = function(s_ptr, s_len) {
     else {
         let textDiv = document.createElement("div");
         textDiv.setAttribute("class", "word");
-        textDiv.innerHTML = text;
+        textDiv.innerHTML = sanitize(text);
         let elem = document.getElementById(word_buffer);
         elem.appendChild(textDiv);
     }
@@ -119,16 +136,17 @@ function clear_word_buffer() {
 function addWordToBuffer(simplified, pinyin) {
     let simplifiedP = document.createElement("p");
     simplifiedP.setAttribute("class", "word_characters");
-    simplifiedP.innerHTML = simplified;
+    simplifiedP.innerHTML = sanitize(simplified);
     let pinyinP = document.createElement("p");
     pinyinP.setAttribute("class", "word_pinyin");
-    pinyinP.innerHTML = pinyin;
+    pinyinP.innerHTML = sanitize(pinyin);
     let wordDiv = document.createElement("div");
     wordDiv.setAttribute("class", "word wordhover");
     wordDiv.appendChild(simplifiedP);
     wordDiv.appendChild(pinyinP);
     wordDiv.addEventListener("click", function() {
-        showDefinition(simplified, this);
+        //showDefinition(simplified, this);
+        showDefinition(this);
     });
     let elem = document.getElementById(word_buffer);
     elem.appendChild(wordDiv);
@@ -172,13 +190,36 @@ var current_panel = "";
 var last_panel = "";
 
 function unselectWord() {
-    var selected_word = document.getElementById("word_selected");
+    let selected_word = document.getElementById("word_selected");
     if(selected_word === null) return;
     selected_word.removeAttribute("id");
 }
-function showDefinition(word, word_elem) {
-    if(typeof word_elem !== "undefined") {
-        var selected_word = document.getElementById("word_selected");
+//function showDefinition(word, word_elem) {
+function showDefinition(word_elem) {
+    let word = "";
+    let adj_words = "";
+    if(typeof word_elem === "string") {
+        word = word_elem;
+        adj_words = word;
+    } else if(typeof word_elem !== "undefined") {
+        word = word_elem.getElementsByClassName("word_characters")[0].innerHTML;
+        adj_words = word;
+
+        const longest_codepoint_length = chre.exports.longestCodepointLength();
+        let current_elem = word_elem.nextElementSibling;
+        while(adj_words.length < longest_codepoint_length && current_elem !== null) {
+            let found_elems = current_elem.getElementsByClassName("word_characters");
+            if(found_elems.length > 0) {
+                const next_word = found_elems[0].innerHTML;
+                adj_words += next_word;
+            }
+            current_elem = current_elem.nextElementSibling;
+        }
+        if(adj_words.length > longest_codepoint_length) {
+            adj_words = adj_words.substring(0, longest_codepoint_length);
+        }
+
+        let selected_word = document.getElementById("word_selected");
         if(word_elem == selected_word) {
             unselectWord();
             selectPanel(last_panel);
@@ -192,13 +233,13 @@ function showDefinition(word, word_elem) {
     }
 
 
-    const bytes = toUTF8Array(word);
+    const bytes = toUTF8Array(adj_words);
     const arr = getBuffer(bytes.length);
     for(let i = 0; i < bytes.length; i += 1) {
         arr[i] = bytes[i];
     }
     clear_def_box();
-    chre.exports.retrieveDefinitions(arr.byteOffset, arr.length);
+    chre.exports.retrieveDefinitions(arr.byteOffset, arr.length, word.length);
     freeBuffer(arr);
     selectPanel("definition");
 }
@@ -298,7 +339,7 @@ function updateSaves() {
         let part = parts[i];
         let elem = document.createElement("div");
         elem.setAttribute("class", "save_entry");
-        elem.innerHTML = "<p>" + part + "</p>";
+        elem.innerHTML = "<p>" + sanitize(part) + "</p>";
         elem.addEventListener("click", () => {
             let inp_elem = document.getElementById("input_buffer");
             inp_elem.value = loadFile(part);
@@ -349,6 +390,11 @@ function save() {
 }
 
 window.addEventListener("load", () => {
+    var elem = document.getElementById(input_buffer_id);
+    if(window.location.hash.length > 0) {
+        console.log("hello");
+        elem.value = decodeURI(window.location.hash.substring(1));
+    }
     loadReaderWasm();
     selectPanel("license");
     setPinyinEnabled(false);
