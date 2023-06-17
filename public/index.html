@@ -155,6 +155,31 @@ body {
     font-size: 14pt;
     
 }
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.4);
+}
+
+.modal-content {
+    background-color: #FF69B4;
+    margin: auto;
+    position: absolute;
+    bottom: 0px;
+    width: 100%;
+    min-height: 5em;
+    text-align: center;
+}
+.modal-content button {
+  font-size: 14px;
+  margin: 2px;
+  padding: 10px;
+}
     </style>
 </head>
 
@@ -175,12 +200,13 @@ body {
             <a href="https://www.mdbg.net/chinese/dictionary"><img src="https://www.mdbg.net/logos/mdbg_dictionary_160x40.png" alt="MDBG Chinese-English dictionary" title="MDBG Chinese-English dictionary" style="border: solid 1px #c0c0c0" border="0" /></a>
         </div>
         <div id="panel_input" class="option_panel">
-            <textarea id="input_buffer" oninput="updateInput()"></textarea><br>
+            <textarea id="input_buffer" oninput="updateInput(true)"></textarea><br>
         </div>
         <div id="panel_storage" class="option_panel">
             <input style="display:inline-block;" type="text" id="storage_filename">
             <button class="navitem" id="storage_save" onclick="save()"><p>Save</p></button>
             <button class="navitem" id="storage_delete" onclick="deleteSave()"><p>Delete</p></button>
+            <button class="navitem" id="storage_new" onclick="newSave()"><p>New</p></button>
             <div id="save_list"></div>
         </div>
         <div id="panel_debug" class="option_panel">
@@ -198,6 +224,9 @@ body {
             <button id="nav_pinyin" class="navitem" onclick="togglePinyin()"><p>Pinyin</p></button>
             <button id="nav_none" class="navitem" style="width:2em;" onclick="hidePanels()"><p>X</p></button>
         </div>
+    </div>
+    <div class="modal">
+      <div class="modal-content"></div>
     </div>
 </body>
 
