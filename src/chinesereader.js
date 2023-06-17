@@ -310,16 +310,20 @@ function loadReaderWasm() {
         .then(bytes => WebAssembly.instantiate(bytes, chre.imports))
         .then(obj => {
             chre.launch(obj);
-            updateInput();
+            updateInput(false);
         });
 }
 
 var recent_updates = 0;
 var update_delay = 1000;
+var updated = false;
 
-function updateInput() {
-    let save_button = document.getElementById("storage_save");
-    save_button.innerHTML = "<p>Save!!!</p>";
+function updateInput(has_change) {
+    if (has_change) {
+        let save_button = document.getElementById("storage_save");
+        save_button.innerHTML = "<p>Save!!!</p>";
+        updated = true;
+    }
     recent_updates += 1;
     setTimeout(() => {
         recent_updates -= 1;
@@ -343,14 +347,20 @@ function updateSaves() {
         elem.setAttribute("class", "save_entry");
         elem.innerHTML = "<p>" + sanitize(part) + "</p>";
         elem.addEventListener("click", () => {
-            let inp_elem = document.getElementById("input_buffer");
-            inp_elem.value = loadFile(part);
-            let save_filename = document.getElementById("storage_filename");
-            save_filename.value = part;
-            updateInput();
-            let save_button = document.getElementById("storage_save");
-            save_button.innerHTML = "<p>Save</p>";
-            selectPanel("input");
+            genModal(
+              "You might have unsaved changes. Are you sure want to load '" 
+              + sanitize(part) + "'",
+              updated,
+              function() {
+              let inp_elem = document.getElementById("input_buffer");
+              inp_elem.value = loadFile(part);
+              let save_filename = document.getElementById("storage_filename");
+              save_filename.value = part;
+              updateInput(false);
+              let save_button = document.getElementById("storage_save");
+              save_button.innerHTML = "<p>Save</p>";
+              selectPanel("input");
+            });
         });
         storage_elem.appendChild(elem);
     }
@@ -361,16 +371,22 @@ function loadFile(name) {
 }
 function deleteSave() {
     let filename = document.getElementById("storage_filename").value;
-    localStorage.setItem("file_" + filename, null);
-    let saves = JSON.parse(localStorage.getItem("save_list"));
-    if(saves === null) saves = [];
-    let idx = saves.indexOf(filename);
-    if(idx != -1) { 
-      saves.splice(idx, 1);
-    }
+    genModal(
+      "Are you sure you wish to delete the file '" + sanitize(filename) + "'", 
+      true,
+      function() {
+      localStorage.setItem("file_" + filename, null);
+      let saves = JSON.parse(localStorage.getItem("save_list"));
+      if(saves === null) saves = [];
+      let idx = saves.indexOf(filename);
+      if(idx != -1) { 
+        saves.splice(idx, 1);
+      }
     
-    localStorage.setItem("save_list", JSON.stringify(saves)); 
-    updateSaves();
+      localStorage.setItem("save_list", JSON.stringify(saves));
+      updated = false;
+      updateSaves();
+    });
 }
 function save() {
     let filename = document.getElementById("storage_filename").value;
@@ -387,8 +403,20 @@ function save() {
     
     let save_button = document.getElementById("storage_save");
     save_button.innerHTML = "<p>Save</p>";
-
+    updated = false;
     updateSaves();
+}
+
+function newSave() {
+    genModal(
+      "You might have unsaved changes. Do you wish to start a new file?", 
+      updated,
+      function() {
+      document.getElementById("storage_filename").value = "";
+      document.getElementById("input_buffer").value = "";
+      updated = false;
+      updateInput(false);
+    });
 }
 
 window.addEventListener("load", () => {
@@ -401,4 +429,46 @@ window.addEventListener("load", () => {
     selectPanel("license");
     setPinyinEnabled(false);
     updateSaves();
+
+    window.addEventListener("beforeunload", function(e) {
+        if (!updated) {
+            return null;
+        }
+        let confirmationMessage = 
+        "You might have unsaved changes. Are you sure you want to quit?";
+        (e || window.event).returnValue = confirmationMessage;
+        return confirmationMessage;
+    });
 });
+
+function genModal(text, cond, func) {
+    let modal = document.getElementsByClassName("modal")[0];
+    let modalContent = document.getElementsByClassName("modal-content")[0];
+    if (cond) {
+        modal.setAttribute("style", "display:block;");
+        
+        contentP = document.createElement("p");
+        contentP.innerHTML = sanitize(text);
+        contentYes = document.createElement("button");
+        contentYes.setAttribute("class", "navitem");
+        contentNo = document.createElement("button");
+        contentNo.setAttribute("class", "navitem");
+        contentYes.innerHTML = "Yes";
+        contentNo.innerHTML = "No";
+        modalContent.appendChild(contentP);
+        modalContent.appendChild(contentYes);
+        modalContent.appendChild(contentNo);
+
+        contentYes.addEventListener("click", function() {
+          modal.setAttribute("style", "display:none;");
+          modalContent.innerHTML = "";
+          func();
+        });
+        contentNo.addEventListener("click", function() {
+          modal.setAttribute("style", "display:none;");
+          modalContent.innerHTML = "";
+        });
+    } else {
+        func(); 
+    }
+}
