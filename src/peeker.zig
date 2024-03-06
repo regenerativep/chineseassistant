@@ -26,15 +26,18 @@ pub fn CodepointArrayPeeker(comptime max_bytes: usize, comptime max_codepoints: 
 
         pub fn fill(self: *Self) void {
             while (true) {
-                var prev_i = self.iter.i;
+                const prev_i = self.iter.i;
                 if (self.iter.nextCodepointSlice()) |slice| {
-                    const codepoint_doesnt_fit = self.byte_buf.buffer.len - self.byte_buf.len < slice.len;
-                    const codepoint_ends_no_space = self.codepoint_ends.buffer.len - self.codepoint_ends.len == 0;
+                    const codepoint_doesnt_fit =
+                        self.byte_buf.buffer.len - self.byte_buf.len < slice.len;
+                    const codepoint_ends_no_space =
+                        self.codepoint_ends.buffer.len - self.codepoint_ends.len == 0;
                     if (codepoint_doesnt_fit or codepoint_ends_no_space) {
                         self.iter.i = prev_i; // rewind, cannot fit next codepoint
                         break;
                     } else {
-                        self.codepoint_ends.appendAssumeCapacity(self.byte_buf.len + slice.len);
+                        self.codepoint_ends
+                            .appendAssumeCapacity(self.byte_buf.len + slice.len);
                         self.byte_buf.appendSliceAssumeCapacity(slice);
                     }
                 } else {
@@ -45,18 +48,27 @@ pub fn CodepointArrayPeeker(comptime max_bytes: usize, comptime max_codepoints: 
 
         // assumes there exists a codepoint, and that codepoint is valid
         pub fn firstCodepointInBuffer(self: *Self) []const u8 {
-            const len = unicode.utf8ByteSequenceLength(self.byte_buf.buffer[0]) catch unreachable;
+            const len = unicode.utf8ByteSequenceLength(self.byte_buf.buffer[0]) catch
+                unreachable;
             return self.byte_buf.buffer[0..len];
         }
 
         pub fn removeFirstNCodepoints(self: *Self, n: usize) void {
             const bytes_up_to = self.codepoint_ends.buffer[n - 1];
             const new_bytes_len = self.byte_buf.len - bytes_up_to;
-            mem.copy(u8, self.byte_buf.buffer[0..new_bytes_len], self.byte_buf.buffer[bytes_up_to..self.byte_buf.len]);
-            self.byte_buf.len = new_bytes_len;
+            mem.copyForwards(
+                u8,
+                self.byte_buf.buffer[0..new_bytes_len],
+                self.byte_buf.buffer[bytes_up_to..self.byte_buf.len],
+            );
+            self.byte_buf.len = @intCast(new_bytes_len);
             const new_codepoints_len = self.codepoint_ends.len - n;
-            mem.copy(usize, self.codepoint_ends.buffer[0..new_codepoints_len], self.codepoint_ends.buffer[n..self.codepoint_ends.len]);
-            self.codepoint_ends.len = new_codepoints_len;
+            mem.copyForwards(
+                usize,
+                self.codepoint_ends.buffer[0..new_codepoints_len],
+                self.codepoint_ends.buffer[n..self.codepoint_ends.len],
+            );
+            self.codepoint_ends.len = @intCast(new_codepoints_len);
             for (self.codepoint_ends.slice()) |*val| {
                 val.* -= bytes_up_to;
             }

@@ -513,7 +513,7 @@ pub const PinyinCharacter = struct {
             self.final.toString(self.initial == null and self.proper).len + 1;
     }
     pub fn toString(self: PinyinCharacter, alloc: std.mem.Allocator) ![]const u8 {
-        var text = try alloc.alloc(u8, self.size());
+        const text = try alloc.alloc(u8, self.size());
         errdefer alloc.free(text);
         var stream = std.io.fixedBufferStream(text);
         try self.write(stream.writer());

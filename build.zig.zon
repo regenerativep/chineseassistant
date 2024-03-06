@@ -1,10 +1,12 @@
 .{
     .name = "chineseassistant",
     .version = "0.1.0",
+    .minimum_zig_version = "0.12.0-dev.2809+f3bd17772",
     .dependencies = .{
         .extrapacked = .{
-            .url = "https://github.com/regenerativep/extrapacked/archive/c9fd0546378ac8e1620bad01c4768d78fd70ef3f.tar.gz",
-            .hash = "12207901e5dc8449576824153ad6213489b9ace5c41c872cb081b99a0fc26739bf1b",
+            .url = "git+https://github.com/regenerativep/extrapacked.git#872be985e359c68bd7473a7b87b80ce80306765d",
+            .hash = "12200100779015341fa10f7b6d1139f7c04ded2ee4e279007a5eb172d710d3a4deb6",
         },
     },
+    .paths = .{""},
 }

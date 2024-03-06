@@ -41,13 +41,13 @@ pub fn trim(text: []const u8) []const u8 {
     return mem.trim(u8, text, &std.ascii.whitespace);
 }
 pub const DefinitionIterator = struct {
-    lines: mem.SplitIterator(u8),
+    lines: mem.SplitIterator(u8, .sequence),
 
     pub fn next(self: *DefinitionIterator) ?WordDefinition {
         var line: []const u8 = undefined;
         while (true) {
             const test_line = trim(self.lines.next() orelse return null);
-            if (test_line[0] != '#') {
+            if (test_line.len > 0 and test_line[0] != '#') {
                 line = test_line;
                 break;
             }
@@ -62,19 +62,27 @@ pub fn main() !void {
     }){};
     defer _ = gpa.deinit();
     var alloc = gpa.allocator();
-    var file = try fs.cwd().openFile("data/cedict_ts.u8", .{});
+
+    const args = try std.process.argsAlloc(alloc);
+    defer std.process.argsFree(alloc, args);
+
+    const input_data_path = args[1];
+    const output_data_path = args[2];
+    const output_values_path = args[3];
+
+    var file = try fs.cwd().openFile(input_data_path, .{});
     defer file.close();
-    var file_data = try file.readToEndAlloc(alloc, 3999999999);
+    const file_data = try file.readToEndAlloc(alloc, 3999999999);
     defer alloc.free(file_data);
 
     var defs = std.ArrayList(WordDefinition).init(alloc);
     defer defs.deinit();
     var iter = DefinitionIterator{
-        .lines = mem.split(u8, file_data, "\n"),
+        .lines = mem.splitSequence(u8, file_data, "\n"),
     };
     //var ind: usize = 0;
     while (iter.next()) |def| {
-        //if (ind > 100) break;
+        //if (ind > 100000) break;
         //ind += 1;
         try defs.append(def);
     }
@@ -86,11 +94,11 @@ pub fn main() !void {
     var longest_len: usize = 0; //try std.unicode.utf8CountCodepoints(longest.simplified);
     var longest_byte_len: usize = 0;
     for (defs.items) |def| {
-        longest_byte_len = std.math.max(longest_byte_len, std.math.max(
+        longest_byte_len = @max(longest_byte_len, @max(
             def.simplified.len,
             def.traditional.len,
         ));
-        var len: usize = std.math.max(
+        const len: usize = @max(
             try std.unicode.utf8CountCodepoints(def.simplified),
             try std.unicode.utf8CountCodepoints(def.traditional),
         );
@@ -102,15 +110,20 @@ pub fn main() !void {
     //std.log.info("longest: {}", .{longest_len});
 
     {
-        const target_filename = "src/gen/dict_values.zig";
-        var target_file = try fs.cwd().createFile(target_filename, .{});
+        var target_file = try fs.cwd().createFile(output_values_path, .{});
         defer target_file.close();
         try target_file.writer().print(
             \\pub const LongestCodepointLen = {};
             \\pub const LongestByteLen = {};
             \\pub const DefinitionCount = {};
             \\
-        , .{ longest_len, longest_byte_len, defs.items.len });
+            \\pub const bin = @embedFile("words.bin");
+            \\
+        , .{
+            longest_len,
+            longest_byte_len,
+            defs.items.len,
+        });
     }
 
     var data = std.ArrayList(u8).init(alloc);
@@ -119,30 +132,33 @@ pub fn main() !void {
     var writer = buffered_writer.writer();
 
     for (defs.items) |def| {
-        try writer.writeIntLittle(u16, @intCast(u16, def.simplified.len));
+        try writer.writeInt(u16, @intCast(def.simplified.len), .little);
         try writer.writeAll(def.simplified);
-        try writer.writeIntLittle(u16, @intCast(u16, def.traditional.len));
+        try writer.writeInt(u16, @intCast(def.traditional.len), .little);
         try writer.writeAll(def.traditional);
-        try writer.writeIntLittle(u16, @intCast(u16, def.definition.len));
+        try writer.writeInt(u16, @intCast(def.definition.len), .little);
         try writer.writeAll(def.definition);
         var pinyin_buf: [50]pinyin.DictionaryPinyin = undefined;
         const chars = pinyin.readPinyinCharacters(&pinyin_buf, def.pinyin);
-        try writer.writeIntLittle(u16, @intCast(u16, chars.len));
+        try writer.writeInt(u16, @intCast(chars.len), .little);
         for (chars) |c| {
             const unpacked_c = if (c == .pinyin) pinyin.CharacterOrLength{
                 .character = c.pinyin,
             } else pinyin.CharacterOrLength{
-                .len = @intCast(u15, c.other.len),
+                .len = @intCast(c.other.len),
             };
-            try writer.writeIntLittle(u16, pinyin.PackedCharacterOrLength.pack(unpacked_c));
+            try writer.writeInt(
+                u16,
+                pinyin.PackedCharacterOrLength.pack(unpacked_c),
+                .little,
+            );
             if (c == .other) try writer.writeAll(c.other);
         }
     }
     try buffered_writer.flush();
 
     {
-        const target_filename = "src/gen/words.bin";
-        var target_file = try fs.cwd().createFile(target_filename, .{});
+        var target_file = try fs.cwd().createFile(output_data_path, .{});
         defer target_file.close();
         try target_file.writeAll(data.items);
     }

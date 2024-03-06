@@ -45,6 +45,8 @@ function sanitize(str) {
             new_str += "&gt;";
         } else if(c === "&") {
             new_str += "&amp;";
+        } else if(c === "\n") {
+            new_str += "<br>";
         } else {
             new_str += c;
         }

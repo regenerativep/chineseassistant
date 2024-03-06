@@ -7,8 +7,7 @@ Pinyin displayed underneath the chinese text is not necessarily always correct. 
 ## using
 
 1. Grab a [`cedict_ts.u8`](https://www.mdbg.net/chinese/dictionary?page=cedict) and put it in a `data` folder.
-2. `zig build -Dgen_def=true run` to generate definitions using the `cedict_ts.u8`.
-4. `zig build -Doptimize=ReleaseSmall` generates the `chineseassistant.wasm`.
+2. `zig build -Doptimize=ReleaseSmall` generates the `chineseassistant.wasm`.
 
 `./serve.sh` will run `zig build -Doptimize=ReleaseSmall`, and then hosts a server with miniserve on the `public` folder with port 8000.
 

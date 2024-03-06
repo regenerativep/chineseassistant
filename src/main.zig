@@ -55,28 +55,28 @@ const OutputBufferWriter = std.io.Writer(
     writeOutputBufferVoid,
 );
 
-pub const std_options = struct {
-    pub const log_level: std.log.Level = .info;
+pub fn logFn(
+    comptime level: std.log.Level,
+    comptime scope: @TypeOf(.EnumLiteral),
+    comptime format: []const u8,
+    args: anytype,
+) void {
+    const scope_prefix = "(" ++ switch (scope) {
+        .default => @tagName(scope),
+        else => if (@intFromEnum(level) <= @intFromEnum(std.log.Level.err))
+            @tagName(scope)
+        else
+            return,
+    } ++ "): ";
 
-    pub fn logFn(
-        comptime level: std.log.Level,
-        comptime scope: @TypeOf(.EnumLiteral),
-        comptime format: []const u8,
-        args: anytype,
-    ) void {
-        const scope_prefix = "(" ++ switch (scope) {
-            .default => @tagName(scope),
-            else => if (@enumToInt(level) <= @enumToInt(std.log.Level.err))
-                @tagName(scope)
-            else
-                return,
-        } ++ "): ";
+    const prefix = "[" ++ comptime level.asText() ++ "] " ++ scope_prefix;
 
-        const prefix = "[" ++ comptime level.asText() ++ "] " ++ scope_prefix;
-
-        var writer = OutputBufferWriter{ .context = {} };
-        nosuspend writer.print(prefix ++ format ++ "<br>", args) catch return;
-    }
+    var writer = OutputBufferWriter{ .context = {} };
+    nosuspend writer.print(prefix ++ format ++ "\n", args) catch return;
+}
+pub const std_options = std.Options{
+    .log_level = .info,
+    .logFn = logFn,
 };
 
 var gpa: std.heap.GeneralPurposeAllocator(.{}) = undefined;
@@ -89,7 +89,7 @@ var zero_buf = [_]u8{0};
 
 export fn getBuffer(len: usize) ?[*]u8 {
     if (len == 0) return (zero_buf[0..1]).ptr;
-    var buf = alloc.alloc(u8, len) catch return null;
+    const buf = alloc.alloc(u8, len) catch return null;
     last_buffer_length = len;
     return buf.ptr;
 }
@@ -133,7 +133,7 @@ pub fn Rc(comptime T: type) type {
         references: usize = 0,
 
         pub fn init(val: T) !*@This() {
-            var self = try alloc.create(@This());
+            const self = try alloc.create(@This());
             self.* = .{ .value = val, .references = 1 };
             return self;
         }
@@ -379,9 +379,9 @@ pub const PreprocessState = enum {
 
                             var buf_ptr = request_file(name.ptr, name.len) orelse
                                 return;
-                            var buf = buf_ptr[0..last_buffer_length];
+                            const buf = buf_ptr[0..last_buffer_length];
                             defer alloc.free(buf);
-                            var processed_text = try preprocess(buf, depth - 1);
+                            const processed_text = try preprocess(buf, depth - 1);
                             defer alloc.free(processed_text);
                             try text.appendSlice(processed_text);
                         },
@@ -449,7 +449,7 @@ export fn longestCodepointLength() usize {
 pub fn receiveInputBufferE(unprocessed_text: []const u8) !void {
     freeCustomDict();
     errdefer freeCustomDict();
-    var text = try preprocess(unprocessed_text, 10);
+    const text = try preprocess(unprocessed_text, 10);
     defer alloc.free(text);
 
     var peeker = try CodepointArrayPeeker(
@@ -573,7 +573,7 @@ pub fn retrieveDefinitionsE(text: []const u8, max_begin: usize) !void {
                 }
             }
             if (dict.get(sub_text)) |def_iter_c| {
-                const current_ptr = @ptrToInt(def_iter_c.inner);
+                const current_ptr = @intFromPtr(def_iter_c.inner);
                 var already_retrieved = false;
                 for (retrieved.items) |ptr| {
                     if (ptr == current_ptr) already_retrieved = true;
